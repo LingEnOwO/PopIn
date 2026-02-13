@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "PopIn",
+    "slug": "popin",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#BB0000"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.osu.popin"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#BB0000"
+      },
+      "package": "com.osu.popin"
+    },
+
+    "scheme": "popin",
+    "plugins": ["expo-router"]
+  }
+}
