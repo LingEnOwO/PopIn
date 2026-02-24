@@ -18,39 +18,16 @@ import { supabase } from "../../lib/supabase";
 import { PrimaryButton } from "../../components/Button";
 import { Card } from "../../components/Card";
 
-type PickerTarget = "startDate" | "startTime" | "endDate" | "endTime" | null;
+type RequiredField =
+  | "title"
+  | "startDate"
+  | "startTime"
+  | "endDate"
+  | "endTime"
+  | "location"
+  | "capacity";
 
-const formatDate = (value: Date) =>
-  value.toLocaleDateString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-  });
-
-const formatTime = (value: Date) =>
-  value.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-
-const toNextFiveMinutes = (value: Date) => {
-  const rounded = new Date(value);
-  rounded.setSeconds(0, 0);
-  const minutes = rounded.getMinutes();
-  const remainder = minutes % 5;
-
-  if (remainder !== 0) {
-    rounded.setMinutes(minutes + (5 - remainder));
-  }
-
-  return rounded;
-};
-
-const createDefaultStart = () => toNextFiveMinutes(new Date(Date.now() + 15 * 60 * 1000));
-
-const createDefaultEnd = (start: Date) =>
-  new Date(start.getTime() + 60 * 60 * 1000);
+type FieldErrors = Partial<Record<RequiredField, string>>;
 
 export default function CreateEventScreen() {
   const initialStart = createDefaultStart();
@@ -64,6 +41,32 @@ export default function CreateEventScreen() {
   const [capacity, setCapacity] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+
+  const validateRequiredFields = (): FieldErrors => {
+    const errors: FieldErrors = {};
+
+    if (!title.trim()) errors.title = "Title is required";
+    if (!startDate.trim()) errors.startDate = "Start date is required";
+    if (!startTime.trim()) errors.startTime = "Start time is required";
+    if (!endDate.trim()) errors.endDate = "End date is required";
+    if (!endTime.trim()) errors.endTime = "End time is required";
+    if (!location.trim()) errors.location = "Location is required";
+    if (!capacity.trim()) errors.capacity = "Capacity is required";
+
+    return errors;
+  };
+
+  const getInputClassName = (field: RequiredField) =>
+    `bg-gray-50 border rounded-lg px-4 py-3 text-base ${
+      fieldErrors[field] ? "border-red-500" : "border-gray-200"
+    }`;
+
+  const renderRequiredLabel = (label: string) => (
+    <Text className="text-osu-dark mb-2 font-semibold">
+      {label} <Text className="text-red-500">*</Text>
+    </Text>
+  );
 
   const pickerMode: "date" | "time" =
     pickerTarget === "startDate" || pickerTarget === "endDate"
@@ -174,12 +177,10 @@ export default function CreateEventScreen() {
 
   const handleCreate = async () => {
     // Validation
-    if (
-      !title.trim() ||
-      !location.trim() ||
-      !capacity
-    ) {
-      Alert.alert("Error", "Please fill in all required fields");
+    const requiredFieldErrors = validateRequiredFields();
+    setFieldErrors(requiredFieldErrors);
+
+    if (Object.keys(requiredFieldErrors).length > 0) {
       return;
     }
 
@@ -271,82 +272,134 @@ export default function CreateEventScreen() {
           </Text>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">Title *</Text>
+            {renderRequiredLabel("Title")}
             <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
+              className={getInputClassName("title")}
               placeholder="Event name"
               value={title}
-              onChangeText={setTitle}
+              onChangeText={(value) => {
+                setTitle(value);
+                if (fieldErrors.title && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, title: undefined }));
+                }
+              }}
             />
+            {fieldErrors.title && (
+              <Text className="text-red-500 text-sm mt-1">{fieldErrors.title}</Text>
+            )}
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">Start Date *</Text>
-            <Pressable
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
-              onPress={() => setPickerTarget("startDate")}
-            >
-              <Text className="text-base text-osu-dark">
-                {formatDate(startDateTime)}
-              </Text>
-            </Pressable>
-          </View>
-
-          <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">Start Time *</Text>
-            <Pressable
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
-              onPress={() => setPickerTarget("startTime")}
-            >
-              <Text className="text-base text-osu-dark">
-                {formatTime(startDateTime)}
-              </Text>
-            </Pressable>
-          </View>
-
-          <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">End Date *</Text>
-            <Pressable
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
-              onPress={() => setPickerTarget("endDate")}
-            >
-              <Text className="text-base text-osu-dark">
-                {formatDate(endDateTime)}
-              </Text>
-            </Pressable>
-          </View>
-
-          <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">End Time *</Text>
-            <Pressable
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
-              onPress={() => setPickerTarget("endTime")}
-            >
-              <Text className="text-base text-osu-dark">
-                {formatTime(endDateTime)}
-              </Text>
-            </Pressable>
-          </View>
-
-          <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">Location *</Text>
+            {renderRequiredLabel("Start Date (MM/DD/YYYY)")}
             <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
+              className={getInputClassName("startDate")}
+              placeholder="02/15/2026"
+              value={startDate}
+              onChangeText={(value) => {
+                setStartDate(value);
+                if (fieldErrors.startDate && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, startDate: undefined }));
+                }
+              }}
+            />
+            {fieldErrors.startDate && (
+              <Text className="text-red-500 text-sm mt-1">
+                {fieldErrors.startDate}
+              </Text>
+            )}
+          </View>
+
+          <View className="mb-4">
+            {renderRequiredLabel("Start Time (HH:MM 24h)")}
+            <TextInput
+              className={getInputClassName("startTime")}
+              placeholder="14:30"
+              value={startTime}
+              onChangeText={(value) => {
+                setStartTime(value);
+                if (fieldErrors.startTime && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, startTime: undefined }));
+                }
+              }}
+            />
+            {fieldErrors.startTime && (
+              <Text className="text-red-500 text-sm mt-1">
+                {fieldErrors.startTime}
+              </Text>
+            )}
+          </View>
+
+          <View className="mb-4">
+            {renderRequiredLabel("End Date (MM/DD/YYYY)")}
+            <TextInput
+              className={getInputClassName("endDate")}
+              placeholder="02/15/2026"
+              value={endDate}
+              onChangeText={(value) => {
+                setEndDate(value);
+                if (fieldErrors.endDate && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, endDate: undefined }));
+                }
+              }}
+            />
+            {fieldErrors.endDate && (
+              <Text className="text-red-500 text-sm mt-1">{fieldErrors.endDate}</Text>
+            )}
+          </View>
+
+          <View className="mb-4">
+            {renderRequiredLabel("End Time (HH:MM 24h)")}
+            <TextInput
+              className={getInputClassName("endTime")}
+              placeholder="16:30"
+              value={endTime}
+              onChangeText={(value) => {
+                setEndTime(value);
+                if (fieldErrors.endTime && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, endTime: undefined }));
+                }
+              }}
+            />
+            {fieldErrors.endTime && (
+              <Text className="text-red-500 text-sm mt-1">{fieldErrors.endTime}</Text>
+            )}
+          </View>
+
+          <View className="mb-4">
+            {renderRequiredLabel("Location")}
+            <TextInput
+              className={getInputClassName("location")}
               placeholder="e.g., Thompson Library, Room 150"
               value={location}
-              onChangeText={setLocation}
+              onChangeText={(value) => {
+                setLocation(value);
+                if (fieldErrors.location && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, location: undefined }));
+                }
+              }}
             />
+            {fieldErrors.location && (
+              <Text className="text-red-500 text-sm mt-1">{fieldErrors.location}</Text>
+            )}
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">Capacity *</Text>
+            {renderRequiredLabel("Capacity")}
             <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
+              className={getInputClassName("capacity")}
               placeholder="Maximum number of attendees"
               value={capacity}
-              onChangeText={setCapacity}
+              onChangeText={(value) => {
+                setCapacity(value);
+                if (fieldErrors.capacity && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, capacity: undefined }));
+                }
+              }}
               keyboardType="number-pad"
             />
+            {fieldErrors.capacity && (
+              <Text className="text-red-500 text-sm mt-1">{fieldErrors.capacity}</Text>
+            )}
           </View>
 
           <View className="mb-6">
