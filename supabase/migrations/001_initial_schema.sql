@@ -20,7 +20,7 @@ CREATE TABLE events (
   start_time TIMESTAMPTZ NOT NULL,
   end_time TIMESTAMPTZ NOT NULL,
   location_text TEXT NOT NULL,
-  capacity INTEGER NOT NULL CHECK (capacity > 0),
+  capacity INTEGER DEFAULT 10 CHECK (capacity IS NULL OR capacity > 0),
   description TEXT,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'canceled')),
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL

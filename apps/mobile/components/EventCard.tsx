@@ -28,8 +28,9 @@ export function EventCard({ event }: EventCardProps) {
   };
 
   const attendeeCount = event.attendee_count || 0;
-  const spotsLeft = event.capacity - attendeeCount;
-  const isFull = spotsLeft <= 0;
+  const isUnlimited = event.capacity == null;
+  const spotsLeft = event.capacity == null ? null : event.capacity - attendeeCount;
+  const isFull = spotsLeft != null && spotsLeft <= 0;
 
   return (
     <TouchableOpacity
@@ -64,7 +65,9 @@ export function EventCard({ event }: EventCardProps) {
 
         <View className="flex-row justify-between items-center">
           <Text className="text-gray-500 text-sm">
-            {attendeeCount}/{event.capacity} attending
+            {isUnlimited
+              ? `${attendeeCount} attending (Unlimited)`
+              : `${attendeeCount}/${event.capacity} attending`}
           </Text>
           {event.host && (
             <Text className="text-gray-500 text-sm">

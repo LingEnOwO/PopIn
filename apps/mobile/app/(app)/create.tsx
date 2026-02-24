@@ -32,17 +32,22 @@ export default function CreateEventScreen() {
       !startTime ||
       !endDate ||
       !endTime ||
-      !location.trim() ||
-      !capacity
+      !location.trim()
     ) {
       Alert.alert("Error", "Please fill in all required fields");
       return;
     }
 
-    const capacityNum = parseInt(capacity);
-    if (isNaN(capacityNum) || capacityNum <= 0) {
-      Alert.alert("Error", "Please enter a valid capacity");
-      return;
+    const trimmedCapacity = capacity.trim();
+    let capacityValue: number | undefined;
+
+    if (trimmedCapacity) {
+      const capacityNum = parseInt(trimmedCapacity, 10);
+      if (isNaN(capacityNum) || capacityNum <= 0) {
+        Alert.alert("Error", "Please enter a valid capacity or leave blank for unlimited");
+        return;
+      }
+      capacityValue = capacityNum;
     }
 
     // Parse dates - expecting MM/DD/YYYY and HH:MM (24-hour)
@@ -115,17 +120,19 @@ export default function CreateEventScreen() {
       return;
     }
 
-    // @ts-expect-error - Supabase type inference issue
-    const { error } = await supabase.from("events").insert({
+    const eventPayload = {
       host_id: user.id,
       title: title.trim(),
       start_time: startDateTime.toISOString(),
       end_time: endDateTime.toISOString(),
       location_text: location.trim(),
-      capacity: capacityNum,
+      ...(capacityValue !== undefined ? { capacity: capacityValue } : {}),
       description: description.trim() || null,
       status: "active" as const,
-    });
+    };
+
+    // @ts-expect-error - Supabase type inference issue
+    const { error } = await supabase.from("events").insert(eventPayload);
 
     setLoading(false);
 
@@ -237,10 +244,12 @@ export default function CreateEventScreen() {
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">Capacity *</Text>
+            <Text className="text-osu-dark mb-2 font-semibold">
+              Capacity (Optional)
+            </Text>
             <TextInput
               className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
-              placeholder="Maximum number of attendees"
+              placeholder="Default: Unlimited"
               value={capacity}
               onChangeText={setCapacity}
               keyboardType="number-pad"

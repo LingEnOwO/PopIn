@@ -63,7 +63,7 @@ export default function EventDetailScreen() {
   const handleJoin = async () => {
     if (!event || !userId) return;
 
-    if (event.attendee_count! >= event.capacity) {
+    if (event.capacity != null && event.attendee_count! >= event.capacity) {
       Alert.alert("Event Full", "This event has reached its capacity");
       return;
     }
@@ -143,7 +143,9 @@ export default function EventDetailScreen() {
     });
   };
 
-  const isFull = event.attendee_count! >= event.capacity;
+  const isUnlimited = event.capacity == null;
+  const isFull =
+    event.capacity != null && event.attendee_count! >= event.capacity;
   const isHost = userId === event.host_id;
 
   return (
@@ -181,7 +183,9 @@ export default function EventDetailScreen() {
               👥 Capacity
             </Text>
             <Text className="text-osu-dark">
-              {event.attendee_count}/{event.capacity} attending
+              {isUnlimited
+                ? `${event.attendee_count} attending (Unlimited)`
+                : `${event.attendee_count}/${event.capacity} attending`}
             </Text>
           </View>
 
