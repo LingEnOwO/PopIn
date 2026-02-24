@@ -15,18 +15,36 @@ export interface Database {
           email: string;
           display_name: string | null;
           created_at: string;
+          major: string | null;
+          year: number | null;
+          interest_tags: string[];
+          avatar_url: string | null;
+          hosted_count: number;
+          attendance_rate: number;
         };
         Insert: {
           id: string;
           email: string;
           display_name?: string | null;
           created_at?: string;
+          major?: string | null;
+          year?: number | null;
+          interest_tags?: string[];
+          avatar_url?: string | null;
+          hosted_count?: number;
+          attendance_rate?: number;
         };
         Update: {
           id?: string;
           email?: string;
           display_name?: string | null;
           created_at?: string;
+          major?: string | null;
+          year?: number | null;
+          interest_tags?: string[];
+          avatar_url?: string | null;
+          hosted_count?: number;
+          attendance_rate?: number;
         };
       };
       events: {
