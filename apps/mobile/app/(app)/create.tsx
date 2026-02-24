@@ -7,31 +7,175 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  Modal,
 } from "react-native";
 import { router } from "expo-router";
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { supabase } from "../../lib/supabase";
 import { PrimaryButton } from "../../components/Button";
 import { Card } from "../../components/Card";
 
+type PickerTarget = "startDate" | "startTime" | "endDate" | "endTime" | null;
+
+const formatDate = (value: Date) =>
+  value.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+  });
+
+const formatTime = (value: Date) =>
+  value.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+const toNextFiveMinutes = (value: Date) => {
+  const rounded = new Date(value);
+  rounded.setSeconds(0, 0);
+  const minutes = rounded.getMinutes();
+  const remainder = minutes % 5;
+
+  if (remainder !== 0) {
+    rounded.setMinutes(minutes + (5 - remainder));
+  }
+
+  return rounded;
+};
+
+const createDefaultStart = () => toNextFiveMinutes(new Date(Date.now() + 15 * 60 * 1000));
+
+const createDefaultEnd = (start: Date) =>
+  new Date(start.getTime() + 60 * 60 * 1000);
+
 export default function CreateEventScreen() {
+  const initialStart = createDefaultStart();
+  const initialEnd = createDefaultEnd(initialStart);
+
   const [title, setTitle] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [endTime, setEndTime] = useState("");
+  const [startDateTime, setStartDateTime] = useState<Date>(initialStart);
+  const [endDateTime, setEndDateTime] = useState<Date>(initialEnd);
+  const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
   const [location, setLocation] = useState("");
   const [capacity, setCapacity] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const pickerMode: "date" | "time" =
+    pickerTarget === "startDate" || pickerTarget === "endDate"
+      ? "date"
+      : "time";
+
+  const pickerMinimumDate =
+    pickerTarget === "startDate"
+      ? new Date()
+      : pickerTarget === "endDate"
+        ? startDateTime
+        : undefined;
+
+  const getPickerValue = () => {
+    switch (pickerTarget) {
+      case "startDate":
+      case "startTime":
+        return startDateTime;
+      case "endDate":
+      case "endTime":
+        return endDateTime;
+      default:
+        return new Date();
+    }
+  };
+
+  const updateDatePart = (current: Date, selected: Date) => {
+    const base = current;
+    return new Date(
+      selected.getFullYear(),
+      selected.getMonth(),
+      selected.getDate(),
+      base.getHours(),
+      base.getMinutes(),
+      0,
+      0,
+    );
+  };
+
+  const updateTimePart = (current: Date, selected: Date) => {
+    const base = current;
+    return new Date(
+      base.getFullYear(),
+      base.getMonth(),
+      base.getDate(),
+      selected.getHours(),
+      selected.getMinutes(),
+      0,
+      0,
+    );
+  };
+
+  const handlePickerChange = (
+    event: DateTimePickerEvent,
+    selectedDate?: Date,
+  ) => {
+    if (event.type === "dismissed") {
+      if (Platform.OS === "android") {
+        setPickerTarget(null);
+      }
+      return;
+    }
+
+    if (!selectedDate || !pickerTarget) {
+      return;
+    }
+
+    if (pickerTarget === "startDate") {
+      setStartDateTime((current) => {
+        const nextStart = updateDatePart(current, selectedDate);
+        setEndDateTime((currentEnd) =>
+          currentEnd <= nextStart
+            ? new Date(nextStart.getTime() + 60 * 60 * 1000)
+            : currentEnd,
+        );
+        return nextStart;
+      });
+    } else if (pickerTarget === "startTime") {
+      setStartDateTime((current) => {
+        const nextStart = updateTimePart(current, selectedDate);
+        setEndDateTime((currentEnd) =>
+          currentEnd <= nextStart
+            ? new Date(nextStart.getTime() + 60 * 60 * 1000)
+            : currentEnd,
+        );
+        return nextStart;
+      });
+    } else if (pickerTarget === "endDate") {
+      setEndDateTime((current) => {
+        const nextEnd = updateDatePart(current, selectedDate);
+        return nextEnd <= startDateTime
+          ? new Date(startDateTime.getTime() + 60 * 60 * 1000)
+          : nextEnd;
+      });
+    } else if (pickerTarget === "endTime") {
+      setEndDateTime((current) => {
+        const nextEnd = updateTimePart(current, selectedDate);
+        return nextEnd <= startDateTime
+          ? new Date(startDateTime.getTime() + 60 * 60 * 1000)
+          : nextEnd;
+      });
+    }
+
+    if (Platform.OS === "android") {
+      setPickerTarget(null);
+    }
+  };
+
   const handleCreate = async () => {
     // Validation
     if (
       !title.trim() ||
-      !startDate ||
-      !startTime ||
-      !endDate ||
-      !endTime ||
       !location.trim() ||
       !capacity
     ) {
@@ -44,49 +188,6 @@ export default function CreateEventScreen() {
       Alert.alert("Error", "Please enter a valid capacity");
       return;
     }
-
-    // Parse dates - expecting MM/DD/YYYY and HH:MM (24-hour)
-    // Example: 02/15/2026 14:30
-    const dateTimeRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-    const timeRegex = /^(\d{1,2}):(\d{2})$/;
-
-    const startDateMatch = startDate.match(dateTimeRegex);
-    const startTimeMatch = startTime.match(timeRegex);
-    const endDateMatch = endDate.match(dateTimeRegex);
-    const endTimeMatch = endTime.match(timeRegex);
-
-    if (!startDateMatch || !startTimeMatch) {
-      Alert.alert(
-        "Error",
-        "Invalid start date or time. Use MM/DD/YYYY for date and HH:MM for time (e.g., 02/15/2026 and 14:30)",
-      );
-      return;
-    }
-
-    if (!endDateMatch || !endTimeMatch) {
-      Alert.alert(
-        "Error",
-        "Invalid end date or time. Use MM/DD/YYYY for date and HH:MM for time (e.g., 02/15/2026 and 16:30)",
-      );
-      return;
-    }
-
-    // Create date objects using individual components
-    const startDateTime = new Date(
-      parseInt(startDateMatch[3]), // year
-      parseInt(startDateMatch[1]) - 1, // month (0-indexed)
-      parseInt(startDateMatch[2]), // day
-      parseInt(startTimeMatch[1]), // hour
-      parseInt(startTimeMatch[2]), // minute
-    );
-
-    const endDateTime = new Date(
-      parseInt(endDateMatch[3]), // year
-      parseInt(endDateMatch[1]) - 1, // month (0-indexed)
-      parseInt(endDateMatch[2]), // day
-      parseInt(endTimeMatch[1]), // hour
-      parseInt(endTimeMatch[2]), // minute
-    );
 
     if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
       Alert.alert("Error", "Invalid date or time values");
@@ -138,11 +239,12 @@ export default function CreateEventScreen() {
           text: "OK",
           onPress: () => {
             // Clear form
+            const resetStart = createDefaultStart();
+            const resetEnd = createDefaultEnd(resetStart);
             setTitle("");
-            setStartDate("");
-            setStartTime("");
-            setEndDate("");
-            setEndTime("");
+            setStartDateTime(resetStart);
+            setEndDateTime(resetEnd);
+            setPickerTarget(null);
             setLocation("");
             setCapacity("");
             setDescription("");
@@ -179,51 +281,51 @@ export default function CreateEventScreen() {
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">
-              Start Date * (MM/DD/YYYY)
-            </Text>
-            <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
-              placeholder="02/15/2026"
-              value={startDate}
-              onChangeText={setStartDate}
-            />
+            <Text className="text-osu-dark mb-2 font-semibold">Start Date *</Text>
+            <Pressable
+              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
+              onPress={() => setPickerTarget("startDate")}
+            >
+              <Text className="text-base text-osu-dark">
+                {formatDate(startDateTime)}
+              </Text>
+            </Pressable>
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">
-              Start Time * (HH:MM 24h)
-            </Text>
-            <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
-              placeholder="14:30"
-              value={startTime}
-              onChangeText={setStartTime}
-            />
+            <Text className="text-osu-dark mb-2 font-semibold">Start Time *</Text>
+            <Pressable
+              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
+              onPress={() => setPickerTarget("startTime")}
+            >
+              <Text className="text-base text-osu-dark">
+                {formatTime(startDateTime)}
+              </Text>
+            </Pressable>
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">
-              End Date * (MM/DD/YYYY)
-            </Text>
-            <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
-              placeholder="02/15/2026"
-              value={endDate}
-              onChangeText={setEndDate}
-            />
+            <Text className="text-osu-dark mb-2 font-semibold">End Date *</Text>
+            <Pressable
+              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
+              onPress={() => setPickerTarget("endDate")}
+            >
+              <Text className="text-base text-osu-dark">
+                {formatDate(endDateTime)}
+              </Text>
+            </Pressable>
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">
-              End Time * (HH:MM 24h)
-            </Text>
-            <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
-              placeholder="16:30"
-              value={endTime}
-              onChangeText={setEndTime}
-            />
+            <Text className="text-osu-dark mb-2 font-semibold">End Time *</Text>
+            <Pressable
+              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
+              onPress={() => setPickerTarget("endTime")}
+            >
+              <Text className="text-base text-osu-dark">
+                {formatTime(endDateTime)}
+              </Text>
+            </Pressable>
           </View>
 
           <View className="mb-4">
@@ -269,6 +371,53 @@ export default function CreateEventScreen() {
           />
         </Card>
       </ScrollView>
+
+      {Platform.OS === "android" && pickerTarget && (
+        <DateTimePicker
+          value={getPickerValue()}
+          mode={pickerMode}
+          display="default"
+          minimumDate={pickerMinimumDate}
+          onChange={handlePickerChange}
+        />
+      )}
+
+      {Platform.OS === "ios" && (
+        <Modal
+          visible={Boolean(pickerTarget)}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPickerTarget(null)}
+        >
+          <Pressable
+            className="flex-1 justify-center px-6"
+            style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
+            onPress={() => setPickerTarget(null)}
+          >
+            <Pressable
+              className="bg-white rounded-xl p-5"
+              onPress={(event) => event.stopPropagation()}
+            >
+              <Text className="text-osu-dark mb-2 font-semibold">
+                {pickerMode === "date" ? "Pick a date" : "Pick a time"}
+              </Text>
+              {pickerTarget && (
+                <DateTimePicker
+                  value={getPickerValue()}
+                  mode={pickerMode}
+                  display={pickerMode === "date" ? "inline" : "spinner"}
+                  minimumDate={pickerMinimumDate}
+                  themeVariant="light"
+                  onChange={handlePickerChange}
+                />
+              )}
+              <Pressable className="mt-3" onPress={() => setPickerTarget(null)}>
+                <Text className="text-osu-orange font-semibold text-right">Done</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </KeyboardAvoidingView>
   );
 }
