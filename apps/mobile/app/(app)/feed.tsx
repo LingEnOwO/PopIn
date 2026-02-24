@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
+  FlatList,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
@@ -10,6 +11,10 @@ import {
 import { supabase } from "../../lib/supabase";
 import type { EventWithDetails } from "shared";
 import { EventCard } from "../../components/EventCard";
+import { getPostHog, buildEventProps } from "../../lib/posthog";
+
+// Session-level dedup: an event is counted as viewed only once per session
+const viewedEventIds = new Set<string>();
 
 type FilterType = "all" | "next3hours" | "today";
 
@@ -18,6 +23,28 @@ export default function FeedScreen() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("all");
   const [userId, setUserId] = useState<string | null>(null);
+
+  // Fire event_viewed only when ≥50% of the card is visible for ≥500 ms
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+    minimumViewTime: 500,
+  });
+
+  const onViewableItemsChanged = useCallback(
+    ({
+      viewableItems,
+    }: {
+      viewableItems: Array<{ item: EventWithDetails }>;
+    }) => {
+      viewableItems.forEach(({ item }) => {
+        if (!viewedEventIds.has(item.id)) {
+          viewedEventIds.add(item.id);
+          getPostHog().capture("event_viewed", buildEventProps(item));
+        }
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -138,9 +165,14 @@ export default function FeedScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView
+      <FlatList
         className="flex-1 px-4"
         contentContainerStyle={{ paddingTop: 16, paddingBottom: 16 }}
+        data={events}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <EventCard event={item} />}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig.current}
         refreshControl={
           <RefreshControl
             refreshing={loading}
@@ -148,18 +180,15 @@ export default function FeedScreen() {
             tintColor="#BB0000"
           />
         }
-      >
-        {events.length === 0 && !loading && (
-          <View className="items-center justify-center py-12">
-            <Text className="text-gray-500 text-lg">No events found</Text>
-            <Text className="text-gray-400 mt-2">Try a different filter</Text>
-          </View>
-        )}
-
-        {events.map((event) => (
-          <EventCard key={event.id} event={event} />
-        ))}
-      </ScrollView>
+        ListEmptyComponent={
+          !loading ? (
+            <View className="items-center justify-center py-12">
+              <Text className="text-gray-500 text-lg">No events found</Text>
+              <Text className="text-gray-400 mt-2">Try a different filter</Text>
+            </View>
+          ) : null
+        }
+      />
     </View>
   );
 }
