@@ -32,16 +32,16 @@ export default function CreateEventScreen() {
       !startTime ||
       !endDate ||
       !endTime ||
-      !location.trim() ||
-      !capacity
+      !location.trim()
     ) {
       Alert.alert("Error", "Please fill in all required fields");
       return;
     }
 
-    const capacityNum = parseInt(capacity);
-    if (isNaN(capacityNum) || capacityNum <= 0) {
-      Alert.alert("Error", "Please enter a valid capacity");
+    const trimmedCapacity = capacity.trim();
+    const capacityNum = trimmedCapacity ? parseInt(trimmedCapacity, 10) : null;
+    if (trimmedCapacity && (capacityNum == null || isNaN(capacityNum) || capacityNum <= 0)) {
+      Alert.alert("Error", "Please enter a valid capacity or leave blank for unlimited");
       return;
     }
 
@@ -237,10 +237,10 @@ export default function CreateEventScreen() {
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">Capacity *</Text>
+            <Text className="text-osu-dark mb-2 font-semibold">Capacity (Optional)</Text>
             <TextInput
               className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
-              placeholder="Maximum number of attendees"
+              placeholder="Leave blank for unlimited"
               value={capacity}
               onChangeText={setCapacity}
               keyboardType="number-pad"
