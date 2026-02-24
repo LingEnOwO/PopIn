@@ -13,6 +13,17 @@ import { supabase } from "../../lib/supabase";
 import { PrimaryButton } from "../../components/Button";
 import { Card } from "../../components/Card";
 
+type RequiredField =
+  | "title"
+  | "startDate"
+  | "startTime"
+  | "endDate"
+  | "endTime"
+  | "location"
+  | "capacity";
+
+type FieldErrors = Partial<Record<RequiredField, string>>;
+
 export default function CreateEventScreen() {
   const [title, setTitle] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -23,18 +34,39 @@ export default function CreateEventScreen() {
   const [capacity, setCapacity] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+
+  const validateRequiredFields = (): FieldErrors => {
+    const errors: FieldErrors = {};
+
+    if (!title.trim()) errors.title = "Title is required";
+    if (!startDate.trim()) errors.startDate = "Start date is required";
+    if (!startTime.trim()) errors.startTime = "Start time is required";
+    if (!endDate.trim()) errors.endDate = "End date is required";
+    if (!endTime.trim()) errors.endTime = "End time is required";
+    if (!location.trim()) errors.location = "Location is required";
+    if (!capacity.trim()) errors.capacity = "Capacity is required";
+
+    return errors;
+  };
+
+  const getInputClassName = (field: RequiredField) =>
+    `bg-gray-50 border rounded-lg px-4 py-3 text-base ${
+      fieldErrors[field] ? "border-red-500" : "border-gray-200"
+    }`;
+
+  const renderRequiredLabel = (label: string) => (
+    <Text className="text-osu-dark mb-2 font-semibold">
+      {label} <Text className="text-red-500">*</Text>
+    </Text>
+  );
 
   const handleCreate = async () => {
     // Validation
-    if (
-      !title.trim() ||
-      !startDate ||
-      !startTime ||
-      !endDate ||
-      !endTime ||
-      !location.trim()
-    ) {
-      Alert.alert("Error", "Please fill in all required fields");
+    const requiredFieldErrors = validateRequiredFields();
+    setFieldErrors(requiredFieldErrors);
+
+    if (Object.keys(requiredFieldErrors).length > 0) {
       return;
     }
 
@@ -176,84 +208,134 @@ export default function CreateEventScreen() {
           </Text>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">Title *</Text>
+            {renderRequiredLabel("Title")}
             <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
+              className={getInputClassName("title")}
               placeholder="Event name"
               value={title}
-              onChangeText={setTitle}
+              onChangeText={(value) => {
+                setTitle(value);
+                if (fieldErrors.title && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, title: undefined }));
+                }
+              }}
             />
+            {fieldErrors.title && (
+              <Text className="text-red-500 text-sm mt-1">{fieldErrors.title}</Text>
+            )}
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">
-              Start Date * (MM/DD/YYYY)
-            </Text>
+            {renderRequiredLabel("Start Date (MM/DD/YYYY)")}
             <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
+              className={getInputClassName("startDate")}
               placeholder="02/15/2026"
               value={startDate}
-              onChangeText={setStartDate}
+              onChangeText={(value) => {
+                setStartDate(value);
+                if (fieldErrors.startDate && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, startDate: undefined }));
+                }
+              }}
             />
+            {fieldErrors.startDate && (
+              <Text className="text-red-500 text-sm mt-1">
+                {fieldErrors.startDate}
+              </Text>
+            )}
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">
-              Start Time * (HH:MM 24h)
-            </Text>
+            {renderRequiredLabel("Start Time (HH:MM 24h)")}
             <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
+              className={getInputClassName("startTime")}
               placeholder="14:30"
               value={startTime}
-              onChangeText={setStartTime}
+              onChangeText={(value) => {
+                setStartTime(value);
+                if (fieldErrors.startTime && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, startTime: undefined }));
+                }
+              }}
             />
+            {fieldErrors.startTime && (
+              <Text className="text-red-500 text-sm mt-1">
+                {fieldErrors.startTime}
+              </Text>
+            )}
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">
-              End Date * (MM/DD/YYYY)
-            </Text>
+            {renderRequiredLabel("End Date (MM/DD/YYYY)")}
             <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
+              className={getInputClassName("endDate")}
               placeholder="02/15/2026"
               value={endDate}
-              onChangeText={setEndDate}
+              onChangeText={(value) => {
+                setEndDate(value);
+                if (fieldErrors.endDate && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, endDate: undefined }));
+                }
+              }}
             />
+            {fieldErrors.endDate && (
+              <Text className="text-red-500 text-sm mt-1">{fieldErrors.endDate}</Text>
+            )}
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">
-              End Time * (HH:MM 24h)
-            </Text>
+            {renderRequiredLabel("End Time (HH:MM 24h)")}
             <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
+              className={getInputClassName("endTime")}
               placeholder="16:30"
               value={endTime}
-              onChangeText={setEndTime}
+              onChangeText={(value) => {
+                setEndTime(value);
+                if (fieldErrors.endTime && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, endTime: undefined }));
+                }
+              }}
             />
+            {fieldErrors.endTime && (
+              <Text className="text-red-500 text-sm mt-1">{fieldErrors.endTime}</Text>
+            )}
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">Location *</Text>
+            {renderRequiredLabel("Location")}
             <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
+              className={getInputClassName("location")}
               placeholder="e.g., Thompson Library, Room 150"
               value={location}
-              onChangeText={setLocation}
+              onChangeText={(value) => {
+                setLocation(value);
+                if (fieldErrors.location && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, location: undefined }));
+                }
+              }}
             />
+            {fieldErrors.location && (
+              <Text className="text-red-500 text-sm mt-1">{fieldErrors.location}</Text>
+            )}
           </View>
 
           <View className="mb-4">
-            <Text className="text-osu-dark mb-2 font-semibold">
-              Capacity (Optional)
-            </Text>
+            {renderRequiredLabel("Capacity")}
             <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
-              placeholder="Default: Unlimited"
+              className={getInputClassName("capacity")}
+              placeholder="Maximum number of attendees"
               value={capacity}
-              onChangeText={setCapacity}
+              onChangeText={(value) => {
+                setCapacity(value);
+                if (fieldErrors.capacity && value.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, capacity: undefined }));
+                }
+              }}
               keyboardType="number-pad"
             />
+            {fieldErrors.capacity && (
+              <Text className="text-red-500 text-sm mt-1">{fieldErrors.capacity}</Text>
+            )}
           </View>
 
           <View className="mb-6">

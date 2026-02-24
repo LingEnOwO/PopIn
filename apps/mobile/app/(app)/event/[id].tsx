@@ -147,6 +147,14 @@ export default function EventDetailScreen() {
   const isFull =
     event.capacity != null && event.attendee_count! >= event.capacity;
   const isHost = userId === event.host_id;
+  const attendeeCount = event.attendee_count || 0;
+  const spotsLeft = Math.max(event.capacity - attendeeCount, 0);
+  const scarcityCopy =
+    attendeeCount === 0
+      ? "Be the first to join 💪"
+      : spotsLeft === 1
+        ? "1 spot left"
+        : `${spotsLeft} spots left`;
 
   return (
     <ScrollView className="flex-1 bg-osu-light">
@@ -182,11 +190,7 @@ export default function EventDetailScreen() {
             <Text className="text-gray-600 font-semibold mb-1">
               👥 Capacity
             </Text>
-            <Text className="text-osu-dark">
-              {isUnlimited
-                ? `${event.attendee_count} attending (Unlimited)`
-                : `${event.attendee_count}/${event.capacity} attending`}
-            </Text>
+            <Text className="text-osu-dark">{scarcityCopy}</Text>
           </View>
 
           {event.description && (
