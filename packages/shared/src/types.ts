@@ -13,7 +13,7 @@ export interface Event {
   start_time: string;
   end_time: string;
   location_text: string;
-  capacity: number;
+  capacity: number | null;
   description: string | null;
   status: "active" | "canceled";
   created_at: string;
@@ -46,7 +46,7 @@ export interface CreateEventInput {
   start_time: string;
   end_time: string;
   location_text: string;
-  capacity: number;
+  capacity: number | null;
   description?: string;
 }
 
@@ -62,3 +62,20 @@ export const EVENT_STATUS = {
   ACTIVE: "active",
   CANCELED: "canceled",
 } as const;
+
+// Capacity constants
+export const DEFAULT_CAPACITY = 6;
+export const UNLIMITED_CAPACITY = null;
+export const SMALL_GROUP_MAX = 6;
+export const MEDIUM_GROUP_MAX = 15;
+export const LARGE_GROUP_MIN = 16;
+
+// Event size label
+export type EventSizeLabel = "small" | "medium" | "large" | "unlimited";
+
+export function getEventSizeLabel(capacity: number | null): EventSizeLabel {
+  if (capacity === null) return "unlimited";
+  if (capacity <= SMALL_GROUP_MAX) return "small";
+  if (capacity <= MEDIUM_GROUP_MAX) return "medium";
+  return "large";
+}

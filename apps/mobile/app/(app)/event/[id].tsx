@@ -63,7 +63,7 @@ export default function EventDetailScreen() {
   const handleJoin = async () => {
     if (!event || !userId) return;
 
-    if (event.attendee_count! >= event.capacity) {
+    if (event.capacity !== null && event.attendee_count! >= event.capacity) {
       Alert.alert("Event Full", "This event has reached its capacity");
       return;
     }
@@ -143,12 +143,16 @@ export default function EventDetailScreen() {
     });
   };
 
-  const isFull = event.attendee_count! >= event.capacity;
+  const isFull = event.capacity !== null && event.attendee_count! >= event.capacity;
   const isHost = userId === event.host_id;
   const attendeeCount = event.attendee_count || 0;
-  const spotsLeft = Math.max(event.capacity - attendeeCount, 0);
-  const scarcityCopy =
-    attendeeCount === 0
+  const isUnlimited = event.capacity === null;
+  const spotsLeft = isUnlimited ? null : Math.max(event.capacity! - attendeeCount, 0);
+  const scarcityCopy = isUnlimited
+    ? attendeeCount === 0
+      ? "Be the first to join 💪"
+      : `${attendeeCount} joined`
+    : attendeeCount === 0
       ? "Be the first to join 💪"
       : spotsLeft === 1
         ? "1 spot left"

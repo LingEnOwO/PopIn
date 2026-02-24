@@ -28,10 +28,14 @@ export function EventCard({ event }: EventCardProps) {
   };
 
   const attendeeCount = event.attendee_count || 0;
-  const spotsLeft = Math.max(event.capacity - attendeeCount, 0);
-  const isFull = spotsLeft <= 0;
-  const scarcityCopy =
-    attendeeCount === 0
+  const isUnlimited = event.capacity === null;
+  const spotsLeft = isUnlimited ? null : Math.max(event.capacity! - attendeeCount, 0);
+  const isFull = !isUnlimited && spotsLeft !== null && spotsLeft <= 0;
+  const scarcityCopy = isUnlimited
+    ? attendeeCount === 0
+      ? "Be the first to join 💪"
+      : `${attendeeCount} joined`
+    : attendeeCount === 0
       ? "Be the first to join 💪"
       : spotsLeft === 1
         ? "1 spot left"

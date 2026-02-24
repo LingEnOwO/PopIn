@@ -7,11 +7,13 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from "react-native";
 import { router } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { PrimaryButton } from "../../components/Button";
 import { Card } from "../../components/Card";
+import { DEFAULT_CAPACITY } from "shared";
 
 type RequiredField =
   | "title"
@@ -31,7 +33,8 @@ export default function CreateEventScreen() {
   const [endDate, setEndDate] = useState("");
   const [endTime, setEndTime] = useState("");
   const [location, setLocation] = useState("");
-  const [capacity, setCapacity] = useState("");
+  const [capacity, setCapacity] = useState(String(DEFAULT_CAPACITY));
+  const [isUnlimited, setIsUnlimited] = useState(false);
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -45,7 +48,7 @@ export default function CreateEventScreen() {
     if (!endDate.trim()) errors.endDate = "End date is required";
     if (!endTime.trim()) errors.endTime = "End time is required";
     if (!location.trim()) errors.location = "Location is required";
-    if (!capacity.trim()) errors.capacity = "Capacity is required";
+    if (!capacity.trim() && !isUnlimited) errors.capacity = "Capacity is required";
 
     return errors;
   };
@@ -70,10 +73,14 @@ export default function CreateEventScreen() {
       return;
     }
 
-    const capacityNum = parseInt(capacity);
-    if (isNaN(capacityNum) || capacityNum <= 0) {
-      Alert.alert("Error", "Please enter a valid capacity");
-      return;
+    let capacityValue: number | null = null;
+    if (!isUnlimited) {
+      const capacityNum = parseInt(capacity);
+      if (isNaN(capacityNum) || capacityNum <= 0) {
+        Alert.alert("Error", "Please enter a valid capacity");
+        return;
+      }
+      capacityValue = capacityNum;
     }
 
     // Parse dates - expecting MM/DD/YYYY and HH:MM (24-hour)
@@ -153,7 +160,7 @@ export default function CreateEventScreen() {
       start_time: startDateTime.toISOString(),
       end_time: endDateTime.toISOString(),
       location_text: location.trim(),
-      capacity: capacityNum,
+      capacity: capacityValue,
       description: description.trim() || null,
       status: "active" as const,
     });
@@ -175,7 +182,8 @@ export default function CreateEventScreen() {
             setEndDate("");
             setEndTime("");
             setLocation("");
-            setCapacity("");
+            setCapacity(String(DEFAULT_CAPACITY));
+            setIsUnlimited(false);
             setDescription("");
             // Navigate to feed
             router.push("/(app)/feed");
@@ -313,20 +321,36 @@ export default function CreateEventScreen() {
 
           <View className="mb-4">
             {renderRequiredLabel("Capacity")}
-            <TextInput
-              className={getInputClassName("capacity")}
-              placeholder="Maximum number of attendees"
-              value={capacity}
-              onChangeText={(value) => {
-                setCapacity(value);
-                if (fieldErrors.capacity && value.trim()) {
-                  setFieldErrors((prev) => ({ ...prev, capacity: undefined }));
-                }
-              }}
-              keyboardType="number-pad"
-            />
-            {fieldErrors.capacity && (
-              <Text className="text-red-500 text-sm mt-1">{fieldErrors.capacity}</Text>
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className="text-gray-600 text-sm">Unlimited</Text>
+              <Switch
+                value={isUnlimited}
+                onValueChange={(value) => {
+                  setIsUnlimited(value);
+                  if (value) {
+                    setFieldErrors((prev) => ({ ...prev, capacity: undefined }));
+                  }
+                }}
+              />
+            </View>
+            {!isUnlimited && (
+              <>
+                <TextInput
+                  className={getInputClassName("capacity")}
+                  placeholder="Maximum number of attendees"
+                  value={capacity}
+                  onChangeText={(value) => {
+                    setCapacity(value);
+                    if (fieldErrors.capacity && value.trim()) {
+                      setFieldErrors((prev) => ({ ...prev, capacity: undefined }));
+                    }
+                  }}
+                  keyboardType="number-pad"
+                />
+                {fieldErrors.capacity && (
+                  <Text className="text-red-500 text-sm mt-1">{fieldErrors.capacity}</Text>
+                )}
+              </>
             )}
           </View>
 
