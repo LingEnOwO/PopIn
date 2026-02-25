@@ -7,43 +7,56 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
 } from "react-native";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { router } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { PrimaryButton } from "../../components/Button";
 import { Card } from "../../components/Card";
 
-type RequiredField =
-  | "title"
-  | "startDate"
-  | "startTime"
-  | "endDate"
-  | "endTime"
-  | "location"
-  | "capacity";
+type RequiredField = "title" | "location" | "capacity";
 
 type FieldErrors = Partial<Record<RequiredField, string>>;
 
+const formatDate = (date: Date): string =>
+  date.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+  });
+
+const formatTime = (date: Date): string =>
+  date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
 export default function CreateEventScreen() {
+  const now = new Date();
+  const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+
   const [title, setTitle] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [endTime, setEndTime] = useState("");
+  const [startDateTime, setStartDateTime] = useState(now);
+  const [endDateTime, setEndDateTime] = useState(oneHourLater);
   const [location, setLocation] = useState("");
   const [capacity, setCapacity] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
+  const [showStartDate, setShowStartDate] = useState(false);
+  const [showStartTime, setShowStartTime] = useState(false);
+  const [showEndDate, setShowEndDate] = useState(false);
+  const [showEndTime, setShowEndTime] = useState(false);
+
   const validateRequiredFields = (): FieldErrors => {
     const errors: FieldErrors = {};
 
     if (!title.trim()) errors.title = "Title is required";
-    if (!startDate.trim()) errors.startDate = "Start date is required";
-    if (!startTime.trim()) errors.startTime = "Start time is required";
-    if (!endDate.trim()) errors.endDate = "End date is required";
-    if (!endTime.trim()) errors.endTime = "End time is required";
     if (!location.trim()) errors.location = "Location is required";
     if (!capacity.trim()) errors.capacity = "Capacity is required";
 
@@ -61,8 +74,63 @@ export default function CreateEventScreen() {
     </Text>
   );
 
+  const handleStartDateChange = (
+    _event: DateTimePickerEvent,
+    selected?: Date,
+  ) => {
+    setShowStartDate(false);
+    if (selected) {
+      const updated = new Date(startDateTime);
+      updated.setFullYear(
+        selected.getFullYear(),
+        selected.getMonth(),
+        selected.getDate(),
+      );
+      setStartDateTime(updated);
+    }
+  };
+
+  const handleStartTimeChange = (
+    _event: DateTimePickerEvent,
+    selected?: Date,
+  ) => {
+    setShowStartTime(false);
+    if (selected) {
+      const updated = new Date(startDateTime);
+      updated.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+      setStartDateTime(updated);
+    }
+  };
+
+  const handleEndDateChange = (
+    _event: DateTimePickerEvent,
+    selected?: Date,
+  ) => {
+    setShowEndDate(false);
+    if (selected) {
+      const updated = new Date(endDateTime);
+      updated.setFullYear(
+        selected.getFullYear(),
+        selected.getMonth(),
+        selected.getDate(),
+      );
+      setEndDateTime(updated);
+    }
+  };
+
+  const handleEndTimeChange = (
+    _event: DateTimePickerEvent,
+    selected?: Date,
+  ) => {
+    setShowEndTime(false);
+    if (selected) {
+      const updated = new Date(endDateTime);
+      updated.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+      setEndDateTime(updated);
+    }
+  };
+
   const handleCreate = async () => {
-    // Validation
     const requiredFieldErrors = validateRequiredFields();
     setFieldErrors(requiredFieldErrors);
 
@@ -73,54 +141,6 @@ export default function CreateEventScreen() {
     const capacityNum = parseInt(capacity);
     if (isNaN(capacityNum) || capacityNum <= 0) {
       Alert.alert("Error", "Please enter a valid capacity");
-      return;
-    }
-
-    // Parse dates - expecting MM/DD/YYYY and HH:MM (24-hour)
-    // Example: 02/15/2026 14:30
-    const dateTimeRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-    const timeRegex = /^(\d{1,2}):(\d{2})$/;
-
-    const startDateMatch = startDate.match(dateTimeRegex);
-    const startTimeMatch = startTime.match(timeRegex);
-    const endDateMatch = endDate.match(dateTimeRegex);
-    const endTimeMatch = endTime.match(timeRegex);
-
-    if (!startDateMatch || !startTimeMatch) {
-      Alert.alert(
-        "Error",
-        "Invalid start date or time. Use MM/DD/YYYY for date and HH:MM for time (e.g., 02/15/2026 and 14:30)",
-      );
-      return;
-    }
-
-    if (!endDateMatch || !endTimeMatch) {
-      Alert.alert(
-        "Error",
-        "Invalid end date or time. Use MM/DD/YYYY for date and HH:MM for time (e.g., 02/15/2026 and 16:30)",
-      );
-      return;
-    }
-
-    // Create date objects using individual components
-    const startDateTime = new Date(
-      parseInt(startDateMatch[3]), // year
-      parseInt(startDateMatch[1]) - 1, // month (0-indexed)
-      parseInt(startDateMatch[2]), // day
-      parseInt(startTimeMatch[1]), // hour
-      parseInt(startTimeMatch[2]), // minute
-    );
-
-    const endDateTime = new Date(
-      parseInt(endDateMatch[3]), // year
-      parseInt(endDateMatch[1]) - 1, // month (0-indexed)
-      parseInt(endDateMatch[2]), // day
-      parseInt(endTimeMatch[1]), // hour
-      parseInt(endTimeMatch[2]), // minute
-    );
-
-    if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
-      Alert.alert("Error", "Invalid date or time values");
       return;
     }
 
@@ -168,16 +188,13 @@ export default function CreateEventScreen() {
         {
           text: "OK",
           onPress: () => {
-            // Clear form
+            const resetNow = new Date();
             setTitle("");
-            setStartDate("");
-            setStartTime("");
-            setEndDate("");
-            setEndTime("");
+            setStartDateTime(resetNow);
+            setEndDateTime(new Date(resetNow.getTime() + 60 * 60 * 1000));
             setLocation("");
             setCapacity("");
             setDescription("");
-            // Navigate to feed
             router.push("/(app)/feed");
           },
         },
@@ -218,78 +235,74 @@ export default function CreateEventScreen() {
           </View>
 
           <View className="mb-4">
-            {renderRequiredLabel("Start Date (MM/DD/YYYY)")}
-            <TextInput
-              className={getInputClassName("startDate")}
-              placeholder="02/15/2026"
-              value={startDate}
-              onChangeText={(value) => {
-                setStartDate(value);
-                if (fieldErrors.startDate && value.trim()) {
-                  setFieldErrors((prev) => ({ ...prev, startDate: undefined }));
-                }
-              }}
-            />
-            {fieldErrors.startDate && (
-              <Text className="text-red-500 text-sm mt-1">
-                {fieldErrors.startDate}
-              </Text>
+            {renderRequiredLabel("Start Date")}
+            <Pressable
+              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
+              onPress={() => setShowStartDate(true)}
+            >
+              <Text className="text-base">{formatDate(startDateTime)}</Text>
+            </Pressable>
+            {showStartDate && (
+              <DateTimePicker
+                value={startDateTime}
+                mode="date"
+                display="default"
+                onChange={handleStartDateChange}
+              />
             )}
           </View>
 
           <View className="mb-4">
-            {renderRequiredLabel("Start Time (HH:MM 24h)")}
-            <TextInput
-              className={getInputClassName("startTime")}
-              placeholder="14:30"
-              value={startTime}
-              onChangeText={(value) => {
-                setStartTime(value);
-                if (fieldErrors.startTime && value.trim()) {
-                  setFieldErrors((prev) => ({ ...prev, startTime: undefined }));
-                }
-              }}
-            />
-            {fieldErrors.startTime && (
-              <Text className="text-red-500 text-sm mt-1">
-                {fieldErrors.startTime}
-              </Text>
+            {renderRequiredLabel("Start Time")}
+            <Pressable
+              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
+              onPress={() => setShowStartTime(true)}
+            >
+              <Text className="text-base">{formatTime(startDateTime)}</Text>
+            </Pressable>
+            {showStartTime && (
+              <DateTimePicker
+                value={startDateTime}
+                mode="time"
+                display="default"
+                onChange={handleStartTimeChange}
+              />
             )}
           </View>
 
           <View className="mb-4">
-            {renderRequiredLabel("End Date (MM/DD/YYYY)")}
-            <TextInput
-              className={getInputClassName("endDate")}
-              placeholder="02/15/2026"
-              value={endDate}
-              onChangeText={(value) => {
-                setEndDate(value);
-                if (fieldErrors.endDate && value.trim()) {
-                  setFieldErrors((prev) => ({ ...prev, endDate: undefined }));
-                }
-              }}
-            />
-            {fieldErrors.endDate && (
-              <Text className="text-red-500 text-sm mt-1">{fieldErrors.endDate}</Text>
+            {renderRequiredLabel("End Date")}
+            <Pressable
+              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
+              onPress={() => setShowEndDate(true)}
+            >
+              <Text className="text-base">{formatDate(endDateTime)}</Text>
+            </Pressable>
+            {showEndDate && (
+              <DateTimePicker
+                value={endDateTime}
+                mode="date"
+                display="default"
+                onChange={handleEndDateChange}
+              />
             )}
           </View>
 
           <View className="mb-4">
-            {renderRequiredLabel("End Time (HH:MM 24h)")}
-            <TextInput
-              className={getInputClassName("endTime")}
-              placeholder="16:30"
-              value={endTime}
-              onChangeText={(value) => {
-                setEndTime(value);
-                if (fieldErrors.endTime && value.trim()) {
-                  setFieldErrors((prev) => ({ ...prev, endTime: undefined }));
-                }
-              }}
-            />
-            {fieldErrors.endTime && (
-              <Text className="text-red-500 text-sm mt-1">{fieldErrors.endTime}</Text>
+            {renderRequiredLabel("End Time")}
+            <Pressable
+              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
+              onPress={() => setShowEndTime(true)}
+            >
+              <Text className="text-base">{formatTime(endDateTime)}</Text>
+            </Pressable>
+            {showEndTime && (
+              <DateTimePicker
+                value={endDateTime}
+                mode="time"
+                display="default"
+                onChange={handleEndTimeChange}
+              />
             )}
           </View>
 
