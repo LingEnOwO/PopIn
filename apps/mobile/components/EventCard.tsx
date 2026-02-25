@@ -28,21 +28,15 @@ export function EventCard({ event }: EventCardProps) {
   };
 
   const attendeeCount = event.attendee_count || 0;
-  const spotsLeft = Math.max(event.capacity - attendeeCount, 0);
-  const isFull = spotsLeft <= 0;
-  const scarcityCopy =
-    attendeeCount === 0
-      ? "Be the first to join 💪"
-      : spotsLeft === 1
-        ? "1 spot left"
-        : `${spotsLeft} spots left`;
+  const isUnlimitedCapacity = event.capacity == null;
+  const isFull = !isUnlimitedCapacity && attendeeCount >= event.capacity;
 
   return (
     <TouchableOpacity
       onPress={() => router.push(`/event/${event.id}`)}
       activeOpacity={0.7}
     >
-      <Card className="mb-4">
+      <Card>
         <View className="flex-row justify-between items-start mb-2">
           <Text
             className="text-lg font-bold text-osu-dark flex-1"
@@ -69,7 +63,11 @@ export function EventCard({ event }: EventCardProps) {
         </Text>
 
         <View className="flex-row justify-between items-center">
-          <Text className="text-gray-500 text-sm">{scarcityCopy}</Text>
+          <Text className="text-gray-500 text-sm">
+            {isUnlimitedCapacity
+              ? `${attendeeCount} attending`
+              : `${attendeeCount}/${event.capacity} attending`}
+          </Text>
           {event.host && (
             <Text className="text-gray-500 text-sm">
               by {event.host.display_name || event.host.email.split("@")[0]}

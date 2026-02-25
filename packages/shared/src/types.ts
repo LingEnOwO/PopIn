@@ -13,7 +13,7 @@ export interface Event {
   start_time: string;
   end_time: string;
   location_text: string;
-  capacity: number;
+  capacity: number | null;
   description: string | null;
   status: "active" | "canceled";
   created_at: string;
@@ -46,7 +46,7 @@ export interface CreateEventInput {
   start_time: string;
   end_time: string;
   location_text: string;
-  capacity: number;
+  capacity?: number | null;
   description?: string;
 }
 

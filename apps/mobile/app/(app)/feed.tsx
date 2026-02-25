@@ -157,7 +157,9 @@ export default function FeedScreen() {
         )}
 
         {events.map((event) => (
-          <EventCard key={event.id} event={event} />
+          <View key={event.id} className="mb-4">
+            <EventCard event={event} />
+          </View>
         ))}
       </ScrollView>
     </View>
