@@ -87,6 +87,10 @@ export default function CreateEventScreen() {
         selected.getDate(),
       );
       setStartDateTime(updated);
+      // Auto-advance endDateTime if it's no longer after the new startDateTime
+      if (endDateTime <= updated) {
+        setEndDateTime(new Date(updated.getTime() + 60 * 60 * 1000));
+      }
     }
   };
 
@@ -99,6 +103,10 @@ export default function CreateEventScreen() {
       const updated = new Date(startDateTime);
       updated.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
       setStartDateTime(updated);
+      // Auto-advance endDateTime if it's no longer after the new startDateTime
+      if (endDateTime <= updated) {
+        setEndDateTime(new Date(updated.getTime() + 60 * 60 * 1000));
+      }
     }
   };
 
@@ -114,7 +122,11 @@ export default function CreateEventScreen() {
         selected.getMonth(),
         selected.getDate(),
       );
-      setEndDateTime(updated);
+      // If the new end date/time is still not after start, clamp to start + 1hr
+      const clamped = updated <= startDateTime
+        ? new Date(startDateTime.getTime() + 60 * 60 * 1000)
+        : updated;
+      setEndDateTime(clamped);
     }
   };
 
@@ -126,7 +138,11 @@ export default function CreateEventScreen() {
     if (selected) {
       const updated = new Date(endDateTime);
       updated.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
-      setEndDateTime(updated);
+      // If the new end time is not after start, clamp to start + 1hr
+      const clamped = updated <= startDateTime
+        ? new Date(startDateTime.getTime() + 60 * 60 * 1000)
+        : updated;
+      setEndDateTime(clamped);
     }
   };
 
@@ -247,6 +263,7 @@ export default function CreateEventScreen() {
                 value={startDateTime}
                 mode="date"
                 display="default"
+                minimumDate={new Date()}
                 onChange={handleStartDateChange}
               />
             )}
@@ -283,6 +300,7 @@ export default function CreateEventScreen() {
                 value={endDateTime}
                 mode="date"
                 display="default"
+                minimumDate={startDateTime}
                 onChange={handleEndDateChange}
               />
             )}
