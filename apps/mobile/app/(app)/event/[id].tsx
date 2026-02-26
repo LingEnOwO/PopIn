@@ -247,12 +247,17 @@ export default function EventDetailScreen() {
                 loading={actionLoading}
               />
             ) : (
-              <PrimaryButton
-                title="Join Event"
-                onPress={handleJoin}
-                disabled={isFull}
-                loading={actionLoading}
-              />
+              <View>
+                <PrimaryButton
+                  title="Join Event"
+                  onPress={handleJoin}
+                  disabled={isFull}
+                  loading={actionLoading}
+                />
+                <Text className="text-gray-400 text-xs text-center mt-1">
+                  You can leave anytime
+                </Text>
+              </View>
             ))}
 
           {isHost && (
