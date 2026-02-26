@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { View, Text, ScrollView, Alert, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { supabase } from "../../../lib/supabase";
 import type { EventWithDetails } from "shared";
 import { Card } from "../../../components/Card";
 import { PrimaryButton, SecondaryButton } from "../../../components/Button";
+import { getPostHog, buildEventProps } from "../../../lib/posthog";
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -13,6 +14,10 @@ export default function EventDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  // Refs to prevent duplicate analytics fires
+  const detailOpenedFired = useRef(false);
+  const attendedFired = useRef(false);
+  const joinClickedInFlight = useRef(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -49,6 +54,22 @@ export default function EventDetailScreen() {
           : false,
       };
       setEvent(eventWithDetails);
+
+      // Fire detail_opened once when the screen first loads
+      if (!detailOpenedFired.current) {
+        detailOpenedFired.current = true;
+        getPostHog().capture("detail_opened", buildEventProps(data));
+      }
+
+      // attended: event has ended AND user is still a participant
+      const hasEnded = new Date(data.end_time) < new Date();
+      const isParticipant = userId
+        ? data.event_members?.some((m: any) => m.user_id === userId)
+        : false;
+      if (hasEnded && isParticipant && !attendedFired.current) {
+        attendedFired.current = true;
+        getPostHog().capture("attended", buildEventProps(data));
+      }
     }
 
     setLoading(false);
@@ -62,11 +83,17 @@ export default function EventDetailScreen() {
 
   const handleJoin = async () => {
     if (!event || !userId) return;
+    // Prevent duplicate fires if user taps rapidly
+    if (joinClickedInFlight.current) return;
 
     if (event.attendee_count! >= event.capacity) {
       Alert.alert("Event Full", "This event has reached its capacity");
       return;
     }
+
+    joinClickedInFlight.current = true;
+    // Fire join_clicked before the async call so it captures intent
+    getPostHog().capture("join_clicked", buildEventProps(event));
 
     setActionLoading(true);
 
@@ -77,6 +104,7 @@ export default function EventDetailScreen() {
     });
 
     setActionLoading(false);
+    joinClickedInFlight.current = false;
 
     if (error) {
       if (error.code === "23505") {
