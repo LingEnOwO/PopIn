@@ -86,7 +86,7 @@ export default function EventDetailScreen() {
     // Prevent duplicate fires if user taps rapidly
     if (joinClickedInFlight.current) return;
 
-    if (event.attendee_count! >= event.capacity) {
+    if (event.capacity != null && event.attendee_count! >= event.capacity) {
       Alert.alert("Event Full", "This event has reached its capacity");
       return;
     }
@@ -171,16 +171,20 @@ export default function EventDetailScreen() {
     });
   };
 
-  const isFull = event.attendee_count! >= event.capacity;
+  const isFull =
+    event.capacity != null && event.attendee_count! >= event.capacity;
   const isHost = userId === event.host_id;
   const attendeeCount = event.attendee_count || 0;
-  const spotsLeft = Math.max(event.capacity - attendeeCount, 0);
+  const spotsLeft =
+    event.capacity != null ? Math.max(event.capacity - attendeeCount, 0) : null;
   const scarcityCopy =
     attendeeCount === 0
       ? "Be the first to join 💪"
-      : spotsLeft === 1
-        ? "1 spot left"
-        : `${spotsLeft} spots left`;
+      : spotsLeft === null
+        ? `${attendeeCount} attending`
+        : spotsLeft === 1
+          ? "1 spot left"
+          : `${spotsLeft} spots left`;
 
   return (
     <ScrollView className="flex-1 bg-osu-light">
