@@ -180,6 +180,7 @@ export default function FeedScreen() {
             tintColor="#BB0000"
           />
         }
+
         ListEmptyComponent={
           !loading ? (
             <View className="items-center justify-center py-12">

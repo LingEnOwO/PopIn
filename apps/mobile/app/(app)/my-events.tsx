@@ -122,7 +122,9 @@ export default function MyEventsScreen() {
             </View>
           ) : (
             hostingEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <View key={event.id} className="mb-4">
+                <EventCard event={event} />
+              </View>
             ))
           )}
         </View>
@@ -143,7 +145,9 @@ export default function MyEventsScreen() {
             </View>
           ) : (
             joinedEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <View key={event.id} className="mb-4">
+                <EventCard event={event} />
+              </View>
             ))
           )}
         </View>
