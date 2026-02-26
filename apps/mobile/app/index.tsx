@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { supabase } from "../lib/supabase";
+import { getPostHog } from "../lib/posthog";
 import { PrimaryButton, SecondaryButton } from "../components/Button";
 
 export default function AuthScreen() {
@@ -78,6 +79,9 @@ export default function AuthScreen() {
     }
 
     if (data.user) {
+      // Identify user in PostHog once per login
+      getPostHog().identify(data.user.id, { email: data.user.email ?? null });
+
       // Create profile if it doesn't exist
       // @ts-expect-error - Supabase type inference issue
       const { error: profileError } = await supabase.from("profiles").upsert(
