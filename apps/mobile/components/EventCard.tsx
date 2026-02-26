@@ -29,7 +29,7 @@ export function EventCard({ event }: EventCardProps) {
 
   const attendeeCount = event.attendee_count || 0;
   const isUnlimitedCapacity = event.capacity == null;
-  const isFull = !isUnlimitedCapacity && attendeeCount >= event.capacity;
+  const isFull = !isUnlimitedCapacity && attendeeCount >= event.capacity!;
 
   return (
     <TouchableOpacity
