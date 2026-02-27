@@ -17,7 +17,7 @@ import { supabase } from "../../lib/supabase";
 import { PrimaryButton } from "../../components/Button";
 import { Card } from "../../components/Card";
 
-type RequiredField = "title" | "location" | "capacity";
+type RequiredField = "title" | "location";
 
 type FieldErrors = Partial<Record<RequiredField, string>>;
 
@@ -34,6 +34,13 @@ const formatTime = (date: Date): string =>
     minute: "2-digit",
     hour12: true,
   });
+
+const isSameDay = (a: Date, b: Date): boolean =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate();
+
+const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
 
 export default function CreateEventScreen() {
   const now = new Date();
@@ -58,7 +65,6 @@ export default function CreateEventScreen() {
 
     if (!title.trim()) errors.title = "Title is required";
     if (!location.trim()) errors.location = "Location is required";
-    if (!capacity.trim()) errors.capacity = "Capacity is required";
 
     return errors;
   };
@@ -74,6 +80,15 @@ export default function CreateEventScreen() {
     </Text>
   );
 
+  const checkStartWithin48Hours = (date: Date) => {
+    if (date.getTime() - new Date().getTime() > FORTY_EIGHT_HOURS_MS) {
+      Alert.alert(
+        "Start Time Too Far",
+        "Please set the start time within 48 hours from now.",
+      );
+    }
+  };
+
   const handleStartDateChange = (
     _event: DateTimePickerEvent,
     selected?: Date,
@@ -87,6 +102,7 @@ export default function CreateEventScreen() {
         selected.getDate(),
       );
       setStartDateTime(updated);
+      checkStartWithin48Hours(updated);
     }
   };
 
@@ -99,6 +115,7 @@ export default function CreateEventScreen() {
       const updated = new Date(startDateTime);
       updated.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
       setStartDateTime(updated);
+      checkStartWithin48Hours(updated);
     }
   };
 
@@ -152,6 +169,11 @@ export default function CreateEventScreen() {
 
     if (startDateTime < new Date()) {
       Alert.alert("Error", "Start time must be in the future");
+      return;
+    }
+
+    if (startDateTime.getTime() - new Date().getTime() > FORTY_EIGHT_HOURS_MS) {
+      Alert.alert("Error", "Start time must be within 48 hours from now");
       return;
     }
 
@@ -248,6 +270,7 @@ export default function CreateEventScreen() {
                 value={startDateTime}
                 mode="date"
                 display="default"
+                minimumDate={new Date()}
                 onChange={handleStartDateChange}
               />
             )}
@@ -266,6 +289,7 @@ export default function CreateEventScreen() {
                 value={startDateTime}
                 mode="time"
                 display="default"
+                minimumDate={isSameDay(startDateTime, new Date()) ? new Date() : undefined}
                 onChange={handleStartTimeChange}
               />
             )}
@@ -284,6 +308,7 @@ export default function CreateEventScreen() {
                 value={endDateTime}
                 mode="date"
                 display="default"
+                minimumDate={startDateTime}
                 onChange={handleEndDateChange}
               />
             )}
@@ -302,6 +327,7 @@ export default function CreateEventScreen() {
                 value={endDateTime}
                 mode="time"
                 display="default"
+                minimumDate={isSameDay(endDateTime, startDateTime) ? startDateTime : undefined}
                 onChange={handleEndTimeChange}
               />
             )}
@@ -331,17 +357,9 @@ export default function CreateEventScreen() {
               className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base"
               placeholder="Leave blank for unlimited"
               value={capacity}
-              onChangeText={(value) => {
-                setCapacity(value);
-                if (fieldErrors.capacity && value.trim()) {
-                  setFieldErrors((prev) => ({ ...prev, capacity: undefined }));
-                }
-              }}
+              onChangeText={setCapacity}
               keyboardType="number-pad"
             />
-            {fieldErrors.capacity && (
-              <Text className="text-red-500 text-sm mt-1">{fieldErrors.capacity}</Text>
-            )}
           </View>
 
           <View className="mb-6">
