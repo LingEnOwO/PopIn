@@ -160,8 +160,8 @@ export default function CreateEventScreen() {
 
     const trimmedCapacity = capacity.trim();
     const capacityNum = trimmedCapacity ? parseInt(trimmedCapacity, 10) : null;
-    if (trimmedCapacity && (capacityNum == null || isNaN(capacityNum) || capacityNum <= 0)) {
-      Alert.alert("Error", "Please enter a valid capacity or leave blank for unlimited");
+    if (trimmedCapacity && (capacityNum == null || isNaN(capacityNum) || capacityNum < 2)) {
+      Alert.alert("Error", "Capacity must be at least 2 (you as the host + at least 1 attendee), or leave blank for unlimited");
       return;
     }
 
@@ -200,7 +200,7 @@ export default function CreateEventScreen() {
     }
 
     // @ts-expect-error - Supabase type inference issue
-    const { error } = await supabase.from("events").insert({
+    const { data: eventData, error } = await supabase.from("events").insert({
       host_id: user.id,
       title: title.trim(),
       start_time: startDateTime.toISOString(),
@@ -209,7 +209,15 @@ export default function CreateEventScreen() {
       capacity: capacityNum,
       description: description.trim() || null,
       status: "active" as const,
-    });
+    }).select("id").single();
+
+    if (!error && eventData) {
+      // @ts-expect-error - Supabase type inference issue
+      await supabase.from("event_members").insert({
+        event_id: (eventData as any).id,
+        user_id: user.id,
+      });
+    }
 
     setLoading(false);
 
