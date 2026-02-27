@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { View, Text, ScrollView, Alert, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, Text, ScrollView, Alert, ActivityIndicator, TouchableOpacity, Image } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { supabase } from "../../../lib/supabase";
 import type { EventWithDetails } from "shared";
@@ -190,6 +190,13 @@ export default function EventDetailScreen() {
     <ScrollView className="flex-1 bg-osu-light">
       <View className="p-4">
         <Card>
+          {event.image_url && (
+            <Image
+              source={{ uri: event.image_url }}
+              style={{ width: "100%", aspectRatio: 16 / 9, borderRadius: 8, marginBottom: 16 }}
+              resizeMode="cover"
+            />
+          )}
           <View className="mb-4">
             <Text className="text-2xl font-bold text-osu-dark mb-2">
               {event.title}

@@ -21,6 +21,7 @@ export interface Event {
   location_text: string;
   capacity: number | null;
   description: string | null;
+  image_url: string | null;
   status: "active" | "canceled";
   created_at: string;
 }
