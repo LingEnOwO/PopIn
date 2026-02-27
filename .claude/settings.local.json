@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pnpm --filter mobile add react-native-keyboard-aware-scroll-view)"
+      "Bash(pnpm --filter mobile add react-native-keyboard-aware-scroll-view)",
+      "Bash(gh issue list --repo LingEnOwO/PopIn)",
+      "WebFetch(domain:api.github.com)"
     ]
   }
 }
