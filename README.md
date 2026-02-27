@@ -102,7 +102,61 @@ EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 ```
 
-### 5. Run the App
+### 5. Set Up Push Notifications
+
+Push notifications are delivered via the Expo Push API and dispatched from Supabase Edge Functions.
+
+#### Run the Database Migration
+
+In your Supabase SQL Editor, run `supabase/migrations/003_push_notifications.sql`. This adds:
+- `profiles.expo_push_token` — stored per user on device login
+- `events.reminder_sent_at` — idempotency guard for 15-min reminders
+
+#### Deploy Edge Functions
+
+Install the [Supabase CLI](https://supabase.com/docs/guides/cli) and run:
+
+```bash
+supabase login
+supabase link --project-ref <your-project-ref>
+supabase functions deploy send-push
+supabase functions deploy event-reminders
+```
+
+> `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are automatically injected into edge functions at runtime — no manual secret setup required.
+
+#### Configure the Reminder Cron Job
+
+In your Supabase Dashboard → **Database** → **Extensions**, enable `pg_cron`.
+
+Then in the SQL Editor:
+
+```sql
+SELECT cron.schedule(
+  'event-reminders',
+  '* * * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://<your-project-ref>.supabase.co/functions/v1/event-reminders',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer ' || current_setting('app.service_role_key'),
+      'Content-Type', 'application/json'
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);
+```
+
+Alternatively, configure a scheduled invocation directly in **Supabase Dashboard → Edge Functions → event-reminders → Schedule**.
+
+#### EAS Project ID
+
+Ensure `EXPO_PUBLIC_EAS_PROJECT_ID` in `apps/mobile/.env` matches your EAS project from [expo.dev](https://expo.dev). This is required for physical device push tokens.
+
+> Push tokens only register on **physical devices**. Simulators/emulators will skip token registration with a console log.
+
+### 6. Run the App
 
 ```bash
 # From the root directory
@@ -290,19 +344,14 @@ pnpm --filter shared typecheck
 ### Current Limitations (MVP Scope)
 
 - No image uploads
-- No push notifications
 - No in-app messaging
 - No event search
-- Date/time input is manual text (no picker)
-- No analytics
 
 ### Future Enhancements
 
-- Date/time pickers
 - Event search and categories
 - User profiles with avatars
 - Event images
-- Push notifications for joined events
 - Event comments/chat
 - Share events
 

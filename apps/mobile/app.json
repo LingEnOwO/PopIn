@@ -22,6 +22,19 @@
     },
 
     "scheme": "popin",
-    "plugins": ["expo-router"]
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "color": "#BB0000"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "98323105-1673-40e9-a45d-8226c9b84247"
+      }
+    }
   }
 }

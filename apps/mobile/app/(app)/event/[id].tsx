@@ -7,6 +7,16 @@ import { Card } from "../../../components/Card";
 import { PrimaryButton, SecondaryButton } from "../../../components/Button";
 import { getPostHog, buildEventProps } from "../../../lib/posthog";
 
+function notifyPush(type: "join" | "update" | "cancel", eventId: string, actorId: string) {
+  supabase.functions
+    .invoke("send-push", { body: { type, event_id: eventId, actor_id: actorId } })
+    .then(({ error }) => {
+      if (error) console.warn(`[push] ${type} notify error:`, error);
+      else console.log(`[push] ${type} notification sent`);
+    })
+    .catch((err) => console.warn(`[push] ${type} notify failed:`, err));
+}
+
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   if (!id) return null;
@@ -114,6 +124,8 @@ export default function EventDetailScreen() {
         console.error(error);
       }
     } else {
+      // Notify the host that someone joined (fire-and-forget)
+      notifyPush("join", event.id, userId);
       Alert.alert("Success", "You have joined the event!");
       fetchEvent();
     }
@@ -139,6 +151,42 @@ export default function EventDetailScreen() {
       Alert.alert("Success", "You have left the event");
       fetchEvent();
     }
+  };
+
+  const handleCancelEvent = () => {
+    if (!event || !userId) return;
+
+    Alert.alert(
+      "Cancel Event",
+      "Are you sure you want to cancel this event? All attendees will be notified.",
+      [
+        { text: "Keep Event", style: "cancel" },
+        {
+          text: "Cancel Event",
+          style: "destructive",
+          onPress: async () => {
+            setActionLoading(true);
+
+            const { error } = await (supabase.from("events") as any)
+              .update({ status: "canceled" })
+              .eq("id", event.id);
+
+            setActionLoading(false);
+
+            if (error) {
+              Alert.alert("Error", "Failed to cancel event");
+              console.error(error);
+            } else {
+              // Notify all members except the host (fire-and-forget)
+              notifyPush("cancel", event.id, userId);
+              Alert.alert("Event Canceled", "Your event has been canceled.", [
+                { text: "OK", onPress: () => router.back() },
+              ]);
+            }
+          },
+        },
+      ],
+    );
   };
 
   if (loading) {
@@ -262,9 +310,21 @@ export default function EventDetailScreen() {
 
           {isHost && (
             <View className="bg-osu-light p-4 rounded-lg">
-              <Text className="text-osu-dark font-semibold">
+              <Text className="text-osu-dark font-semibold mb-3">
                 You are hosting this event
               </Text>
+              <View style={{ gap: 10 }}>
+                <SecondaryButton
+                  title="Edit Event"
+                  onPress={() => router.push(`/event/edit/${event.id}`)}
+                  loading={false}
+                />
+                <SecondaryButton
+                  title="Cancel Event"
+                  onPress={handleCancelEvent}
+                  loading={actionLoading}
+                />
+              </View>
             </View>
           )}
         </Card>

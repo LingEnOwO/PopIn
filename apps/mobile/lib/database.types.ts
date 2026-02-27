@@ -21,6 +21,7 @@ export interface Database {
           avatar_url: string | null;
           hosted_count: number;
           attendance_rate: number;
+          expo_push_token: string | null;
         };
         Insert: {
           id: string;
@@ -33,6 +34,7 @@ export interface Database {
           avatar_url?: string | null;
           hosted_count?: number;
           attendance_rate?: number;
+          expo_push_token?: string | null;
         };
         Update: {
           id?: string;
@@ -45,6 +47,7 @@ export interface Database {
           avatar_url?: string | null;
           hosted_count?: number;
           attendance_rate?: number;
+          expo_push_token?: string | null;
         };
       };
       events: {
@@ -59,6 +62,7 @@ export interface Database {
           description: string | null;
           status: "active" | "canceled";
           created_at: string;
+          reminder_sent_at: string | null;
         };
         Insert: {
           id?: string;
@@ -71,6 +75,7 @@ export interface Database {
           description?: string | null;
           status?: "active" | "canceled";
           created_at?: string;
+          reminder_sent_at?: string | null;
         };
         Update: {
           id?: string;
@@ -83,6 +88,7 @@ export interface Database {
           description?: string | null;
           status?: "active" | "canceled";
           created_at?: string;
+          reminder_sent_at?: string | null;
         };
       };
       event_members: {
