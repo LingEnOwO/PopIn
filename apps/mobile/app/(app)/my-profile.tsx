@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,8 @@ const YEAR_OPTIONS = [
 
 const formatYear = (y: number) => (y === 6 ? "Graduate" : `Year ${y}`);
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { useFocusEffect } from "expo-router";
+import { useCallback } from "react";
 import { supabase } from "../../lib/supabase";
 import type { Profile } from "shared";
 import { Card } from "../../components/Card";
@@ -37,9 +39,11 @@ export default function MyProfileScreen() {
   const [year, setYear] = useState<number | null>(null);
   const [interestTags, setInterestTags] = useState("");
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile();
+    }, [])
+  );
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -246,19 +250,11 @@ export default function MyProfileScreen() {
           {!editing && (
             <Card>
               <Text className="text-gray-600 font-semibold mb-3">Stats</Text>
-              <View className="flex-row justify-around">
-                <View className="items-center">
-                  <Text className="text-2xl font-bold text-osu-scarlet">
-                    {profile.hosted_count}
-                  </Text>
-                  <Text className="text-gray-500 text-sm">Events Hosted</Text>
-                </View>
-                <View className="items-center">
-                  <Text className="text-2xl font-bold text-osu-scarlet">
-                    {Math.round(profile.attendance_rate * 100)}%
-                  </Text>
-                  <Text className="text-gray-500 text-sm">Attendance Rate</Text>
-                </View>
+              <View className="items-center">
+                <Text className="text-2xl font-bold text-osu-scarlet">
+                  {profile.hosted_count}
+                </Text>
+                <Text className="text-gray-500 text-sm">Events Hosted</Text>
               </View>
             </Card>
           )}

@@ -124,19 +124,11 @@ export default function ProfileScreen() {
         {/* Stats */}
         <Card>
           <Text className="text-gray-600 font-semibold mb-3">Stats</Text>
-          <View className="flex-row justify-around">
-            <View className="items-center">
-              <Text className="text-2xl font-bold text-osu-scarlet">
-                {profile.hosted_count}
-              </Text>
-              <Text className="text-gray-500 text-sm">Events Hosted</Text>
-            </View>
-            <View className="items-center">
-              <Text className="text-2xl font-bold text-osu-scarlet">
-                {Math.round(profile.attendance_rate * 100)}%
-              </Text>
-              <Text className="text-gray-500 text-sm">Attendance Rate</Text>
-            </View>
+          <View className="items-center">
+            <Text className="text-2xl font-bold text-osu-scarlet">
+              {profile.hosted_count}
+            </Text>
+            <Text className="text-gray-500 text-sm">Events Hosted</Text>
           </View>
         </Card>
 
