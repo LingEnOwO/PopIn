@@ -1,29 +1,27 @@
 import { supabase } from "./supabase";
 
 /**
- * Converts a local file URI to a Blob for upload.
- */
-async function uriToBlob(uri: string): Promise<Blob> {
-  const response = await fetch(uri);
-  return response.blob();
-}
-
-/**
- * Uploads a user avatar and returns its public URL.
+ * Uploads a user avatar from a base64 string and returns its public URL.
+ * Using base64 avoids Blob/Hermes incompatibility with Supabase storage in React Native.
  * File path: avatars/{userId}/{timestamp}.{ext}
  */
 export async function uploadAvatar(
   userId: string,
-  imageUri: string
+  base64: string,
+  mimeType: string = "image/jpeg"
 ): Promise<string> {
-  const ext = imageUri.split(".").pop() ?? "jpg";
+  const ext = mimeType.split("/")[1] ?? "jpg";
   const path = `${userId}/${Date.now()}.${ext}`;
 
-  const blob = await uriToBlob(imageUri);
+  const byteCharacters = atob(base64);
+  const byteArray = new Uint8Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteArray[i] = byteCharacters.charCodeAt(i);
+  }
 
   const { error } = await supabase.storage
     .from("avatars")
-    .upload(path, blob, { upsert: true, contentType: `image/${ext}` });
+    .upload(path, byteArray, { upsert: true, contentType: mimeType });
 
   if (error) throw error;
 
@@ -32,21 +30,26 @@ export async function uploadAvatar(
 }
 
 /**
- * Uploads an event photo and returns its public URL.
+ * Uploads an event photo from a base64 string and returns its public URL.
  * File path: event-photos/{userId}/{timestamp}.{ext}
  */
 export async function uploadEventPhoto(
   userId: string,
-  imageUri: string
+  base64: string,
+  mimeType: string = "image/jpeg"
 ): Promise<string> {
-  const ext = imageUri.split(".").pop() ?? "jpg";
+  const ext = mimeType.split("/")[1] ?? "jpg";
   const path = `${userId}/${Date.now()}.${ext}`;
 
-  const blob = await uriToBlob(imageUri);
+  const byteCharacters = atob(base64);
+  const byteArray = new Uint8Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteArray[i] = byteCharacters.charCodeAt(i);
+  }
 
   const { error } = await supabase.storage
     .from("event-photos")
-    .upload(path, blob, { contentType: `image/${ext}` });
+    .upload(path, byteArray, { contentType: mimeType });
 
   if (error) throw error;
 

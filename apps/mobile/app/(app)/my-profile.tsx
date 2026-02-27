@@ -8,6 +8,7 @@ import {
   Alert,
   TouchableOpacity,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 
 const YEAR_OPTIONS = [
   { label: "1st", value: 1 },
@@ -23,6 +24,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { supabase } from "../../lib/supabase";
+import { uploadAvatar } from "../../lib/storage";
 import type { Profile } from "shared";
 import { Card } from "../../components/Card";
 import { PrimaryButton, SecondaryButton } from "../../components/Button";
@@ -32,6 +34,7 @@ export default function MyProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Edit form state
   const [displayName, setDisplayName] = useState("");
@@ -76,6 +79,86 @@ export default function MyProfileScreen() {
     setYear(p.year ?? null);
     setInterestTags(p.interest_tags.join(", "));
     setLoading(false);
+  };
+
+  const handleAvatarPress = () => {
+    Alert.alert("Update Avatar", "Choose a photo", [
+      {
+        text: "Take Photo",
+        onPress: () => pickImage("camera"),
+      },
+      {
+        text: "Choose from Library",
+        onPress: () => pickImage("library"),
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const pickImage = async (source: "camera" | "library") => {
+    if (!profile) return;
+
+    let result: ImagePicker.ImagePickerResult;
+
+    if (source === "camera") {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Denied", "Camera access is required to take a photo.");
+        return;
+      }
+      result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Denied", "Photo library access is required.");
+        return;
+      }
+      result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+    }
+
+    if (result.canceled || !result.assets[0]) return;
+
+    const asset = result.assets[0];
+    if (!asset.base64) {
+      Alert.alert("Error", "Failed to read image data");
+      return;
+    }
+
+    setUploadingAvatar(true);
+
+    try {
+      const mimeType = asset.mimeType ?? "image/jpeg";
+      const publicUrl = await uploadAvatar(profile.id, asset.base64, mimeType);
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", profile.id);
+
+      if (error) {
+        Alert.alert("Error", "Failed to update avatar");
+        console.error(error);
+      } else {
+        fetchProfile();
+      }
+    } catch (err) {
+      Alert.alert("Error", "Failed to upload photo");
+      console.error(err);
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const handleSave = async () => {
@@ -148,18 +231,25 @@ export default function MyProfileScreen() {
           {/* Avatar + Name */}
           <Card>
             <View className="items-center mb-4">
-              {profile.avatar_url ? (
-                <Image
-                  source={{ uri: profile.avatar_url }}
-                  className="w-24 h-24 rounded-full mb-3"
-                />
-              ) : (
-                <View className="w-24 h-24 rounded-full bg-osu-scarlet items-center justify-center mb-3">
-                  <Text className="text-white text-3xl font-bold">
-                    {initials}
-                  </Text>
-                </View>
-              )}
+              <TouchableOpacity onPress={handleAvatarPress} disabled={uploadingAvatar}>
+                {uploadingAvatar ? (
+                  <View className="w-24 h-24 rounded-full bg-gray-200 items-center justify-center mb-3">
+                    <ActivityIndicator color="#BB0000" />
+                  </View>
+                ) : profile.avatar_url ? (
+                  <Image
+                    source={{ uri: profile.avatar_url }}
+                    className="w-24 h-24 rounded-full mb-3"
+                  />
+                ) : (
+                  <View className="w-24 h-24 rounded-full bg-osu-scarlet items-center justify-center mb-3">
+                    <Text className="text-white text-3xl font-bold">
+                      {initials}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <Text className="text-xs text-gray-400 -mt-2 mb-2">Tap to change</Text>
               <Text className="text-2xl font-bold text-osu-dark">
                 {displayNameText}
               </Text>
