@@ -61,6 +61,13 @@ export default function AppLayout() {
             title: "Event Details",
           }}
         />
+        <Tabs.Screen
+          name="profile/[id]"
+          options={{
+            href: null,
+            title: "Profile",
+          }}
+        />
       </Tabs>
     </>
   );

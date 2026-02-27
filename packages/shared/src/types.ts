@@ -4,6 +4,12 @@ export interface Profile {
   email: string;
   display_name: string | null;
   created_at: string;
+  major: string | null;
+  year: number | null;
+  interest_tags: string[];
+  avatar_url: string | null;
+  hosted_count: number;
+  attendance_rate: number;
 }
 
 export interface Event {

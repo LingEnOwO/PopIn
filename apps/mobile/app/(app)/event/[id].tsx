@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { View, Text, ScrollView, Alert, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, Alert, ActivityIndicator, TouchableOpacity } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { supabase } from "../../../lib/supabase";
 import type { EventWithDetails } from "shared";
@@ -234,9 +234,11 @@ export default function EventDetailScreen() {
 
           <View className="mb-6">
             <Text className="text-gray-600 font-semibold mb-1">🎯 Host</Text>
-            <Text className="text-osu-dark">
-              {event.host?.display_name || event.host?.email.split("@")[0]}
-            </Text>
+            <TouchableOpacity onPress={() => router.push(`/profile/${event.host_id}`)}>
+              <Text className="text-osu-scarlet underline">
+                {event.host?.display_name || event.host?.email.split("@")[0]}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {!isHost &&
