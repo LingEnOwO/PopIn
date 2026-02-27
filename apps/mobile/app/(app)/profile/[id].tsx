@@ -8,6 +8,8 @@ import {
   Alert,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
+
+const formatYear = (y: number) => (y === 6 ? "Graduate" : `Year ${y}`);
 import { supabase } from "../../../lib/supabase";
 import type { Profile, Event } from "shared";
 import { Card } from "../../../components/Card";
@@ -111,7 +113,7 @@ export default function ProfileScreen() {
               {profile.year && (
                 <View className="bg-osu-light px-3 py-1 rounded-full">
                   <Text className="text-osu-dark text-sm">
-                    Year {profile.year}
+                    {formatYear(profile.year!)}
                   </Text>
                 </View>
               )}
