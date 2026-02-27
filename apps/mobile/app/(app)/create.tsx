@@ -3,13 +3,11 @@ import {
   View,
   Text,
   TextInput,
-  ScrollView,
   Alert,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
@@ -245,13 +243,14 @@ export default function CreateEventScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      className="flex-1"
-    >
-      <ScrollView
+    <View className="flex-1">
+      <KeyboardAwareScrollView
         className="flex-1 bg-osu-light"
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid
+        extraScrollHeight={80}
       >
         <Card>
           <Text className="text-2xl font-bold text-osu-dark mb-6">
@@ -402,7 +401,7 @@ export default function CreateEventScreen() {
             loading={false}
           />
         </Card>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Modal
         visible={showConfirm}
@@ -473,6 +472,6 @@ export default function CreateEventScreen() {
           </View>
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+    </View>
   );
 }

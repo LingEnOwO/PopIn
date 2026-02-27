@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm --filter mobile add react-native-keyboard-aware-scroll-view)"
+    ]
+  }
+}
