@@ -316,7 +316,7 @@ export default function EventDetailScreen() {
               <View style={{ gap: 10 }}>
                 <SecondaryButton
                   title="Edit Event"
-                  onPress={() => router.push(`/event/edit/${event.id}`)}
+                  onPress={() => router.push(`/(app)/create?editId=${event.id}`)}
                   loading={false}
                 />
                 <SecondaryButton
