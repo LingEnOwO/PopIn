@@ -520,6 +520,17 @@ export default function CreateEventScreen() {
               </View>
             ) : null}
 
+            {eventPhoto && (
+              <View className="mb-3">
+                <Text className="text-xs font-semibold text-gray-400 uppercase mb-0.5">Photo</Text>
+                <Image
+                  source={{ uri: eventPhoto.uri }}
+                  style={{ width: "100%", aspectRatio: 16 / 9, borderRadius: 8, marginTop: 4 }}
+                  resizeMode="cover"
+                />
+              </View>
+            )}
+
             <View className="flex-row mt-6" style={{ gap: 12 }}>
               <View className="flex-1">
                 <SecondaryButton

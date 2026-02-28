@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { View, Text, ScrollView, Alert, ActivityIndicator, TouchableOpacity, Image } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import { supabase } from "../../../lib/supabase";
+import { uploadEventPhoto } from "../../../lib/storage";
 import type { EventWithDetails } from "shared";
 import { Card } from "../../../components/Card";
 import { PrimaryButton, SecondaryButton } from "../../../components/Button";
@@ -14,6 +16,7 @@ export default function EventDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [updatingPhoto, setUpdatingPhoto] = useState(false);
   // Refs to prevent duplicate analytics fires
   const detailOpenedFired = useRef(false);
   const attendedFired = useRef(false);
@@ -141,6 +144,43 @@ export default function EventDetailScreen() {
     }
   };
 
+  const handleChangePhoto = async () => {
+    if (!event || !userId) return;
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Denied", "Photo library access is required.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+      base64: true,
+    });
+    if (result.canceled || !result.assets[0]?.base64) return;
+
+    const asset = result.assets[0];
+    setUpdatingPhoto(true);
+    try {
+      const imageUrl = await uploadEventPhoto(userId, asset.base64!, asset.mimeType ?? "image/jpeg");
+      const { error } = await supabase
+        .from("events")
+        .update({ image_url: imageUrl })
+        .eq("id", event.id);
+      if (error) {
+        Alert.alert("Error", "Failed to update photo");
+        console.error(error);
+      } else {
+        fetchEvent();
+      }
+    } catch {
+      Alert.alert("Error", "Failed to upload photo");
+    } finally {
+      setUpdatingPhoto(false);
+    }
+  };
+
   if (loading) {
     return (
       <View className="flex-1 bg-osu-light items-center justify-center">
@@ -190,12 +230,37 @@ export default function EventDetailScreen() {
     <ScrollView className="flex-1 bg-osu-light">
       <View className="p-4">
         <Card>
-          {event.image_url && (
-            <Image
-              source={{ uri: event.image_url }}
-              style={{ width: "100%", aspectRatio: 16 / 9, borderRadius: 8, marginBottom: 16 }}
-              resizeMode="cover"
-            />
+          {event.image_url ? (
+            <View style={{ marginBottom: 16 }}>
+              <Image
+                source={{ uri: event.image_url }}
+                style={{ width: "100%", aspectRatio: 16 / 9, borderRadius: 8 }}
+                resizeMode="cover"
+              />
+              {isHost && (
+                <TouchableOpacity
+                  onPress={handleChangePhoto}
+                  disabled={updatingPhoto}
+                  className="mt-1"
+                >
+                  {updatingPhoto
+                    ? <ActivityIndicator size="small" color="#BB0000" />
+                    : <Text className="text-osu-scarlet text-sm">Change photo</Text>
+                  }
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : isHost && (
+            <TouchableOpacity
+              onPress={handleChangePhoto}
+              disabled={updatingPhoto}
+              className="bg-gray-50 border border-gray-200 rounded-lg items-center justify-center py-8 mb-4"
+            >
+              {updatingPhoto
+                ? <ActivityIndicator size="small" color="#BB0000" />
+                : <Text className="text-gray-400 text-sm">Tap to add a photo</Text>
+              }
+            </TouchableOpacity>
           )}
           <View className="mb-4">
             <Text className="text-2xl font-bold text-osu-dark mb-2">
