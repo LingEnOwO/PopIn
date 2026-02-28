@@ -40,5 +40,5 @@ yarn-error.*
 .idea/
 .expo
 
-# Claude Code
-.claude/settings.local.json
+# Claude
+.claude/
