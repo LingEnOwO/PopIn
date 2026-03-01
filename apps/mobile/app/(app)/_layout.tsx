@@ -55,10 +55,25 @@ export default function AppLayout() {
           }}
         />
         <Tabs.Screen
+          name="my-profile"
+          options={{
+            title: "My Profile",
+            tabBarIcon: () => null,
+            tabBarLabel: "Profile",
+          }}
+        />
+        <Tabs.Screen
           name="event/[id]"
           options={{
             href: null,
             title: "Event Details",
+          }}
+        />
+        <Tabs.Screen
+          name="profile/[id]"
+          options={{
+            href: null,
+            title: "Profile",
           }}
         />
       </Tabs>
