@@ -248,7 +248,6 @@ export default function MyProfileScreen() {
               <Text className="text-2xl font-bold text-osu-dark">
                 {displayNameText}
               </Text>
-              <Text className="text-gray-500 text-sm">{profile.email}</Text>
             </View>
 
             {!editing && (profile.major || profile.year) && (

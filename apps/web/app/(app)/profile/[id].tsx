@@ -139,7 +139,6 @@ export default function ProfileScreen() {
             <Text className="text-2xl font-bold text-osu-dark">
               {displayName}
             </Text>
-            <Text className="text-gray-500 text-sm">{profile.email}</Text>
           </View>
 
           {/* Academic Info */}
