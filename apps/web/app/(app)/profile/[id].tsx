@@ -170,13 +170,7 @@ export default function ProfileScreen() {
                 {profile.hosted_count}
               </Text>
             </View>
-            <View className="flex-row items-center justify-between">
-              <Text className="text-gray-500 text-sm">Attendance Rate</Text>
-              <Text className="text-xl font-bold text-osu-scarlet">
-                {attendanceRate}%
-              </Text>
             </View>
-          </View>
         </Card>
 
         {/* Interests */}
