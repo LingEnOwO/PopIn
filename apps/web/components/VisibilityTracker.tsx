@@ -20,7 +20,7 @@ export function VisibilityTracker({
   onVisible,
   children,
   threshold = 0.5,
-  dwellMs = 500,
+  dwellMs = 1000,
 }: VisibilityTrackerProps) {
   const viewRef = useRef<View>(null);
   // Prevent firing more than once per component instance

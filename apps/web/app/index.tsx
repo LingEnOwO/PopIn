@@ -147,6 +147,8 @@ export default function AuthScreen() {
                   onChangeText={setEmail}
                   autoCapitalize="none"
                   keyboardType="email-address"
+                  autoComplete="email"
+                  textContentType="emailAddress"
                   editable={!loading}
                 />
 

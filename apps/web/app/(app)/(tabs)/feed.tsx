@@ -192,13 +192,16 @@ export default function FeedScreen() {
                     </View>
                 )}
 
-                {events.map((event) => (
+                {events.map((event, index) => (
                     <VisibilityTracker
                         key={event.id}
                         onVisible={() => {
                             if (!viewedIdsRef.current.has(event.id)) {
                                 viewedIdsRef.current.add(event.id);
-                                getPostHog().capture('event_viewed', buildEventProps(event));
+                                getPostHog().capture('event_viewed', {
+                                    ...buildEventProps(event),
+                                    event_position: index + 1,
+                                });
                             }
                         }}
                     >
