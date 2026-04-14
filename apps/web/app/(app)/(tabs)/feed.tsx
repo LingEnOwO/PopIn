@@ -8,6 +8,7 @@ import {
     Alert,
     ActivityIndicator,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import type { EventWithDetails } from 'shared';
@@ -247,8 +248,8 @@ export default function FeedScreen() {
                         activeOpacity={0.8}
                         className="flex-row items-center rounded-full bg-white px-4 py-2.5 border border-gray-200 shadow-sm"
                     >
-                        <Text className="font-semibold text-gray-700 mr-2">{activeFilterLabel}</Text>
-                        <Text className="text-gray-500 text-sm">⌄</Text>
+                        <MaterialIcons name="tune" size={16} color="#374151" style={{ marginRight: 6 }} />
+                        <Text className="font-semibold text-gray-700">{activeFilterLabel}</Text>
                     </TouchableOpacity>
 
                     {showFilterMenu && (
