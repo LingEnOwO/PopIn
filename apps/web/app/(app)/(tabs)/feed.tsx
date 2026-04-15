@@ -118,7 +118,13 @@ export default function FeedScreen() {
         () => feedCache.all || [],
     );
     const [loading, setLoading] = useState(() => !feedCache.all);
-    const [viewMode, setViewMode] = useState<ViewMode>('list');
+    const [viewMode, setViewMode] = useState<ViewMode>(() => {
+        try {
+            return (globalThis.sessionStorage?.getItem('popin-view-mode') as ViewMode) || 'list';
+        } catch {
+            return 'list';
+        }
+    });
     const [showFilterMenu, setShowFilterMenu] = useState(false);
     const [eventCount, setEventCount] = useState<number | null>(null);
 
@@ -167,6 +173,10 @@ export default function FeedScreen() {
     const viewedIdsRef = useRef(new Set<string>());
 
     const isFilterActive = filterNext3h || filterFreeFood || filterDateActive || selectedFilterTags.length > 0;
+
+    useEffect(() => {
+        try { globalThis.sessionStorage?.setItem('popin-view-mode', viewMode); } catch {}
+    }, [viewMode]);
 
     // Keep refs in sync with state
     useEffect(() => { filterNext3hRef.current = filterNext3h; }, [filterNext3h]);
