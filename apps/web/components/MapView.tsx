@@ -131,6 +131,11 @@ export default function MapView({ events }: Props) {
         (async () => {
             const ONLINE_KEYWORDS = /\b(zoom|teams|webinar|online|virtual|remote)\b/i;
 
+            const onlineFiltered = events.filter(e => e.location_text && ONLINE_KEYWORDS.test(e.location_text));
+            if (onlineFiltered.length > 0) {
+                console.log('[MapView] Skipped (online/virtual):', onlineFiltered.map(e => `"${e.title}" — ${e.location_text}`));
+            }
+
             const eventsToPlace = events.filter(e =>
                 !(e.location_text && ONLINE_KEYWORDS.test(e.location_text)),
             );
@@ -170,10 +175,22 @@ export default function MapView({ events }: Props) {
             );
             if (cancelled) return;
 
+            // Log events that failed to resolve a position
+            positionResults.forEach((r, i) => {
+                const event = eventsToPlace[i];
+                if (r.status === 'rejected') {
+                    console.log(`[MapView] Failed (geocode error): "${event.title}" — ${event.location_text ?? '(no location)'}`, r.reason);
+                } else if (r.value === null) {
+                    console.log(`[MapView] Failed (no position): "${event.title}" — ${event.location_text ?? '(no location_text)'}`);
+                }
+            });
+
             const resolved = positionResults
                 .filter((r): r is PromiseFulfilledResult<{ event: EventWithDetails; position: { lat: number; lng: number } }> =>
                     r.status === 'fulfilled' && r.value !== null)
                 .map(r => r.value);
+
+            console.log(`[MapView] Rendering ${resolved.length}/${events.length} events on map`);
 
             // Step 2 — group events within 150m of each other as the same location.
             // Places autocomplete and Geocoding API return different coordinates for the
