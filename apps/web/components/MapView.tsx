@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { EventWithDetails } from 'shared';
+import { formatTagLabel, getTagColor } from 'shared';
+import { Linking } from 'react-native';
 import { resolveEventLocation } from '../lib/geocode';
 import { supabase } from '../lib/supabase';
 import { loadGoogleMaps } from '../lib/googleMaps';
@@ -470,6 +472,37 @@ export default function MapView({ events }: Props) {
                                         <View>
                                             <Text style={{ fontSize: 11, color: '#9ca3af', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 }}>📝 About</Text>
                                             <Text style={{ fontSize: 14, color: '#374151', lineHeight: 22 }}>{selectedEvent.description}</Text>
+                                        </View>
+                                    ) : null}
+                                    {selectedEvent.tags && selectedEvent.tags.length > 0 && (
+                                        <View>
+                                            <Text style={{ fontSize: 11, color: '#9ca3af', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>🏷️ Tags</Text>
+                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                                {selectedEvent.tags.map((tag) => {
+                                                    const { backgroundColor, textColor } = getTagColor(tag);
+                                                    return (
+                                                        <View key={tag} style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor }}>
+                                                            <Text style={{ fontSize: 12, color: textColor }}>{formatTagLabel(tag)}</Text>
+                                                        </View>
+                                                    );
+                                                })}
+                                            </View>
+                                        </View>
+                                    )}
+                                    {selectedEvent.source_url ? (
+                                        <View>
+                                            <Text style={{ fontSize: 11, color: '#9ca3af', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 }}>🔗 Link</Text>
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    const url = selectedEvent.source_url!.startsWith('http') ? selectedEvent.source_url! : `https://${selectedEvent.source_url}`;
+                                                    Linking.openURL(url);
+                                                }}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Text style={{ fontSize: 14, color: '#BB0000', fontWeight: '500', textDecorationLine: 'underline' }} numberOfLines={1}>
+                                                    {selectedEvent.source_url}
+                                                </Text>
+                                            </TouchableOpacity>
                                         </View>
                                     ) : null}
                                 </View>
