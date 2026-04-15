@@ -12,6 +12,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import type { EventWithDetails } from 'shared';
+import { EVENT_TAGS, formatTagLabel, getTagColor } from 'shared';
 import { EventCard } from '../../../components/EventCard';
 import { VisibilityTracker } from '../../../components/VisibilityTracker';
 import { getPostHog, buildEventProps } from '../../../lib/posthog';
@@ -30,6 +31,8 @@ const FILTER_OPTIONS: Array<{ value: FilterType; label: string }> = [
     { value: 'freeFood', label: 'Free Food' },
     { value: 'myInterests', label: 'My Interests' },
 ];
+
+const FILTER_TAGS_SESSION_KEY = 'popin-filter-tags';
 
 const feedCache: Partial<Record<FilterType, EventWithDetails[]>> = {};
 
@@ -75,13 +78,46 @@ export default function FeedScreen() {
     const [filter, setFilter] = useState<FilterType>('all');
     const [viewMode, setViewMode] = useState<ViewMode>('list');
     const [showFilterMenu, setShowFilterMenu] = useState(false);
+    const [showTagPicker, setShowTagPicker] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
     const [interestTags, setInterestTags] = useState<string[]>([]);
+
+    // Session-persisted filter tags — independent from profile interest_tags
+    const [selectedFilterTags, setSelectedFilterTags] = useState<string[]>(() => {
+        try {
+            const saved = globalThis.sessionStorage?.getItem(FILTER_TAGS_SESSION_KEY);
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
+
+    // Ref so fetchEvents can read latest tags without being in its dep array
+    const selectedFilterTagsRef = useRef(selectedFilterTags);
+
     // Dedup guard: track event IDs that have already fired event_viewed this session
     const viewedIdsRef = useRef(new Set<string>());
 
-    const activeFilterLabel =
-        FILTER_OPTIONS.find((option) => option.value === filter)?.label || 'All';
+    // Keep ref in sync; persist to sessionStorage for guests only
+    useEffect(() => {
+        selectedFilterTagsRef.current = selectedFilterTags;
+        if (userId) return; // logged-in users derive from profile on picker open
+        try {
+            globalThis.sessionStorage?.setItem(
+                FILTER_TAGS_SESSION_KEY,
+                JSON.stringify(selectedFilterTags),
+            );
+        } catch {}
+    }, [selectedFilterTags, userId]);
+
+    const activeFilterLabel = (() => {
+        if (filter === 'myInterests') {
+            return selectedFilterTags.length > 0
+                ? `Interests (${selectedFilterTags.length})`
+                : 'My Interests';
+        }
+        return FILTER_OPTIONS.find((o) => o.value === filter)?.label || 'All';
+    })();
 
     useEffect(() => {
         supabase.auth.getUser().then(({ data }) => {
@@ -164,13 +200,13 @@ export default function FeedScreen() {
             } else if (filter === 'freeFood') {
                 query = query.contains('tags', ['free_food']);
             } else if (filter === 'myInterests') {
-                if (interestTags.length === 0) {
+                const tags = selectedFilterTagsRef.current;
+                if (tags.length === 0) {
                     setEvents([]);
                     setLoading(false);
                     return;
                 }
-
-                query = query.overlaps('tags', interestTags);
+                query = query.overlaps('tags', tags);
             }
 
             const { data, error } = await query;
@@ -220,10 +256,51 @@ export default function FeedScreen() {
         }, [fetchEvents]),
     );
 
+    // Close picker and apply the selected tags to the feed
+    const handlePickerClose = useCallback(() => {
+        setShowTagPicker(false);
+        if (filter === 'myInterests') {
+            fetchEvents(true);
+        }
+    }, [filter, fetchEvents]);
+
+    const handleSelectMyInterests = () => {
+        setFilter('myInterests');
+        setShowFilterMenu(false);
+        // Logged-in: always start picker from current profile tags
+        // Guest: keep whatever was last selected (sessionStorage)
+        if (userId) {
+            setSelectedFilterTags(interestTags);
+        }
+        setShowTagPicker(true);
+    };
+
+    const toggleTag = (tag: string) => {
+        setSelectedFilterTags((prev) =>
+            prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+        );
+    };
+
     return (
         <View className="flex-1 bg-gray-100">
-            {/* Controls: Reddit-style sort dropdown + view toggle */}
-            <View className="px-4 py-3 flex-row items-start justify-between gap-3 relative z-20">
+            {/* Backdrop — closes any open panel */}
+            {(showFilterMenu || showTagPicker) && (
+                <TouchableOpacity
+                    style={{
+                        position: 'absolute',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        zIndex: 10,
+                    }}
+                    activeOpacity={1}
+                    onPress={() => {
+                        setShowFilterMenu(false);
+                        if (showTagPicker) handlePickerClose();
+                    }}
+                />
+            )}
+
+            {/* Controls: view toggle + filter */}
+            <View className="px-4 py-3 flex-row items-start justify-between gap-3" style={{ zIndex: 20 }}>
                 <View className="flex-row items-center rounded-full border border-gray-300 bg-white p-1">
                     {(['list', 'map'] as const).map((mode, i) => {
                         const isActive = viewMode === mode;
@@ -242,9 +319,12 @@ export default function FeedScreen() {
                     })}
                 </View>
 
-                <View className="relative items-end flex-1">
+                <View style={{ position: 'relative', alignItems: 'flex-end', flex: 1 }}>
                     <TouchableOpacity
-                        onPress={() => setShowFilterMenu((value) => !value)}
+                        onPress={() => {
+                            setShowTagPicker(false);
+                            setShowFilterMenu((v) => !v);
+                        }}
                         activeOpacity={0.8}
                         className="flex-row items-center rounded-full bg-white px-4 py-2.5 border border-gray-200 shadow-sm"
                     >
@@ -252,28 +332,139 @@ export default function FeedScreen() {
                         <Text className="font-semibold text-gray-700">{activeFilterLabel}</Text>
                     </TouchableOpacity>
 
+                    {/* Filter dropdown */}
                     {showFilterMenu && (
-                        <View className="absolute top-12 right-0 w-56 rounded-2xl bg-white border border-gray-200 shadow-lg overflow-hidden">
-                            <View className="px-4 py-3 border-b border-gray-100">
-                                <Text className="text-sm font-semibold text-gray-700">Filter by</Text>
+                        <View
+                            style={{
+                                position: 'absolute',
+                                top: 48,
+                                right: 0,
+                                width: 224,
+                                borderRadius: 16,
+                                backgroundColor: 'white',
+                                borderWidth: 1,
+                                borderColor: '#E5E7EB',
+                                shadowColor: '#000',
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowOpacity: 0.1,
+                                shadowRadius: 12,
+                                overflow: 'hidden',
+                                zIndex: 30,
+                            }}
+                        >
+                            <View style={{ paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+                                <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>Filter by</Text>
                             </View>
                             {FILTER_OPTIONS.map((option) => {
                                 const isActive = filter === option.value;
                                 return (
                                     <TouchableOpacity
                                         key={option.value}
-                                        onPress={() => {
-                                            setFilter(option.value);
-                                            setShowFilterMenu(false);
+                                        onPress={
+                                            option.value === 'myInterests'
+                                                ? handleSelectMyInterests
+                                                : () => {
+                                                      setFilter(option.value);
+                                                      setShowFilterMenu(false);
+                                                  }
+                                        }
+                                        style={{
+                                            paddingHorizontal: 16,
+                                            paddingVertical: 12,
+                                            backgroundColor: isActive ? '#F3F4F6' : 'white',
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
                                         }}
-                                        className={`px-4 py-3 ${isActive ? 'bg-gray-100' : 'bg-white'}`}
                                     >
-                                        <Text className={`text-base ${isActive ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
+                                        <Text style={{ fontSize: 15, fontWeight: isActive ? '600' : '400', color: isActive ? '#111827' : '#374151' }}>
                                             {option.label}
                                         </Text>
+                                        {option.value === 'myInterests' && (
+                                            <MaterialIcons name="chevron-right" size={16} color="#9CA3AF" />
+                                        )}
                                     </TouchableOpacity>
                                 );
                             })}
+                        </View>
+                    )}
+
+                    {/* Tag picker panel */}
+                    {showTagPicker && (
+                        <View
+                            style={{
+                                position: 'absolute',
+                                top: 48,
+                                right: 0,
+                                width: 320,
+                                borderRadius: 16,
+                                backgroundColor: 'white',
+                                borderWidth: 1,
+                                borderColor: '#E5E7EB',
+                                shadowColor: '#000',
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowOpacity: 0.1,
+                                shadowRadius: 12,
+                                overflow: 'hidden',
+                                zIndex: 30,
+                            }}
+                        >
+                            {/* Header */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+                                <Text style={{ fontSize: 13, fontWeight: '700', color: '#111827' }}>
+                                    Pick interests
+                                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                    {selectedFilterTags.length > 0 && (
+                                        <TouchableOpacity onPress={() => setSelectedFilterTags([])}>
+                                            <Text style={{ fontSize: 13, fontWeight: '600', color: '#BB0000' }}>Clear</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    <TouchableOpacity onPress={handlePickerClose}>
+                                        <MaterialIcons name="close" size={18} color="#6B7280" />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
+                            {/* Scrollable tag grid */}
+                            <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 12 }}>
+                                    {EVENT_TAGS.map((tag) => {
+                                        const isSelected = selectedFilterTags.includes(tag);
+                                        const tagColor = getTagColor(tag);
+                                        return (
+                                            <TouchableOpacity
+                                                key={tag}
+                                                onPress={() => toggleTag(tag)}
+                                                style={{
+                                                    paddingHorizontal: 12,
+                                                    paddingVertical: 6,
+                                                    borderRadius: 999,
+                                                    backgroundColor: isSelected ? tagColor.backgroundColor : '#F9FAFB',
+                                                    borderWidth: 1,
+                                                    borderColor: isSelected ? tagColor.backgroundColor : '#E5E7EB',
+                                                }}
+                                            >
+                                                <Text style={{ fontSize: 13, color: isSelected ? tagColor.textColor : '#374151' }}>
+                                                    {formatTagLabel(tag)}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                            </ScrollView>
+
+                            {/* Done button */}
+                            <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
+                                <TouchableOpacity
+                                    onPress={handlePickerClose}
+                                    style={{ backgroundColor: '#BB0000', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+                                >
+                                    <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>
+                                        {selectedFilterTags.length > 0 ? `Show events (${selectedFilterTags.length})` : 'Done'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     )}
                 </View>
@@ -298,10 +489,14 @@ export default function FeedScreen() {
                     {events.length === 0 && !loading && (
                         <View className="items-center justify-center py-12">
                             <Text className="text-gray-500 text-lg">
-                                No events found
+                                {filter === 'myInterests' && selectedFilterTags.length === 0
+                                    ? 'No interests selected'
+                                    : 'No events found'}
                             </Text>
                             <Text className="text-gray-400 mt-2">
-                                Try a different filter
+                                {filter === 'myInterests' && selectedFilterTags.length === 0
+                                    ? 'Tap the filter button to pick interests'
+                                    : 'Try a different filter'}
                             </Text>
                         </View>
                     )}
