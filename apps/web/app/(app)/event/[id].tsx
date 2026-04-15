@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, ScrollView, Alert, ActivityIndicator, TouchableOpacity, Image, Platform } from "react-native";
+import { View, Text, ScrollView, Alert, ActivityIndicator, TouchableOpacity, Image, Platform, Linking } from "react-native";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import { supabase } from "../../../lib/supabase";
 import { requestFeedRefresh } from "../../../lib/feedRefresh";
@@ -482,6 +482,24 @@ export default function EventDetailScreen() {
               <View className="py-4 border-b border-gray-200">
                 <Text className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-1">📝 Description</Text>
                 <Text className="text-osu-dark leading-6">{event.description}</Text>
+              </View>
+            )}
+
+            {event.source_url && (
+              <View className="py-4 border-b border-gray-200">
+                <Text className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">🔗 Link</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    const url = event.source_url!.startsWith("http") ? event.source_url! : `https://${event.source_url}`;
+                    Linking.openURL(url);
+                  }}
+                  className="flex-row items-center self-start"
+                  activeOpacity={0.7}
+                >
+                  <Text className="text-osu-scarlet font-medium underline" numberOfLines={1}>
+                    {event.source_url}
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
 

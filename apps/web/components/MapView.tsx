@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { EventWithDetails } from 'shared';
+import { formatTagLabel, getTagColor } from 'shared';
+import { Linking } from 'react-native';
 import { resolveEventLocation } from '../lib/geocode';
 import { supabase } from '../lib/supabase';
 import { loadGoogleMaps } from '../lib/googleMaps';
@@ -20,6 +22,9 @@ export default function MapView({ events }: Props) {
     const markersRef = useRef<any[]>([]);
     const clustererRef = useRef<any>(null);
     const infoWindowRef = useRef<any>(null);
+    // Cached library refs — loaded once during map init, reused on every pins render
+    const markerLibRef = useRef<any>(null);
+    const MarkerClustererRef = useRef<any>(null);
     const [mapReady, setMapReady] = useState(false);
     const [mapError, setMapError] = useState(false);
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -70,6 +75,12 @@ export default function MapView({ events }: Props) {
                 mapRef.current = map;
                 infoWindowRef.current = new google.maps.InfoWindow();
 
+                // Pre-warm marker libs in parallel so the pins effect has them cached
+                Promise.all([
+                    google.maps.importLibrary('marker').then((lib: any) => { markerLibRef.current = lib; }),
+                    import('@googlemaps/markerclusterer').then(({ MarkerClusterer }) => { MarkerClustererRef.current = MarkerClusterer; }),
+                ]).catch(() => {});
+
                 setMapReady(true);
 
                 // Attempt silent geolocation on load (works on HTTPS / localhost).
@@ -118,49 +129,68 @@ export default function MapView({ events }: Props) {
         let cancelled = false;
 
         (async () => {
-            const markerLib: any = await google.maps.importLibrary('marker');
-            const { MarkerClusterer } = await import('@googlemaps/markerclusterer');
-
-            // Step 1 — resolve positions for all events (skip online/virtual events)
             const ONLINE_KEYWORDS = /\b(zoom|teams|webinar|online|virtual|remote)\b/i;
 
-            // Batch-fetch geocode_cache for events missing lat/lng — one round-trip
-            const needsGeocoding = events
-                .filter(e =>
-                    e.location_lat == null &&
-                    e.location_lng == null &&
-                    e.location_text &&
-                    !ONLINE_KEYWORDS.test(e.location_text),
-                )
+            const onlineFiltered = events.filter(e => e.location_text && ONLINE_KEYWORDS.test(e.location_text));
+            if (onlineFiltered.length > 0) {
+                console.log('[MapView] Skipped (online/virtual):', onlineFiltered.map(e => `"${e.title}" — ${e.location_text}`));
+            }
+
+            const eventsToPlace = events.filter(e =>
+                !(e.location_text && ONLINE_KEYWORDS.test(e.location_text)),
+            );
+            const needsGeocoding = eventsToPlace
+                .filter(e => e.location_lat == null && e.location_lng == null && e.location_text)
                 .map(e => e.location_text!);
 
-            const geocacheMap = new Map<string, { lat: number; lng: number }>();
-            if (needsGeocoding.length > 0) {
-                const { data: cacheRows } = await supabase
-                    .from('geocode_cache')
-                    .select('address, lat, lng')
-                    .in('address', needsGeocoding);
-                if (cacheRows) {
-                    for (const row of cacheRows) {
-                        geocacheMap.set(row.address, { lat: row.lat, lng: row.lng });
-                    }
-                }
-            }
+            // Step 1 — run lib imports + geocode_cache fetch all in parallel
+            const [markerLib, { MarkerClusterer }, geocacheResult] = await Promise.all([
+                markerLibRef.current
+                    ? Promise.resolve(markerLibRef.current)
+                    : google.maps.importLibrary('marker').then((lib: any) => { markerLibRef.current = lib; return lib; }),
+                MarkerClustererRef.current
+                    ? Promise.resolve({ MarkerClusterer: MarkerClustererRef.current })
+                    : import('@googlemaps/markerclusterer').then(m => { MarkerClustererRef.current = m.MarkerClusterer; return m; }),
+                needsGeocoding.length > 0
+                    ? supabase.from('geocode_cache').select('address, lat, lng').in('address', needsGeocoding)
+                    : Promise.resolve({ data: [] as { address: string; lat: number; lng: number }[] }),
+            ]);
             if (cancelled) return;
 
-            const resolved: Array<{ event: EventWithDetails; position: { lat: number; lng: number } }> = [];
-            for (const event of events) {
-                if (cancelled) break;
-                if (event.location_text && ONLINE_KEYWORDS.test(event.location_text)) continue;
-                let position: { lat: number; lng: number } | null = null;
-                if (event.location_lat != null && event.location_lng != null) {
-                    position = { lat: event.location_lat, lng: event.location_lng };
-                } else if (event.location_text) {
-                    position = geocacheMap.get(event.location_text) ?? await resolveEventLocation(event.location_text);
-                }
-                if (position) resolved.push({ event, position });
+            const geocacheMap = new Map<string, { lat: number; lng: number }>();
+            for (const row of (geocacheResult.data ?? [])) {
+                geocacheMap.set(row.address, { lat: row.lat, lng: row.lng });
             }
+
+            // Step 2 — resolve all positions in parallel (cache misses geocode concurrently)
+            const positionResults = await Promise.allSettled(
+                eventsToPlace.map(async (event) => {
+                    if (event.location_lat != null && event.location_lng != null) {
+                        return { event, position: { lat: event.location_lat, lng: event.location_lng } };
+                    }
+                    if (!event.location_text) return null;
+                    const position = geocacheMap.get(event.location_text) ?? await resolveEventLocation(event.location_text);
+                    return position ? { event, position } : null;
+                }),
+            );
             if (cancelled) return;
+
+            // Log events that failed to resolve a position
+            positionResults.forEach((r, i) => {
+                const event = eventsToPlace[i];
+                if (r.status === 'rejected') {
+                    console.log(`[MapView] Failed (geocode error): "${event.title}" — ${event.location_text ?? '(no location)'}`, r.reason);
+                } else if (r.value === null) {
+                    console.log(`[MapView] Failed (no position): "${event.title}" — ${event.location_text ?? '(no location_text)'}`);
+                }
+            });
+
+            const resolved = positionResults
+                .filter((r): r is PromiseFulfilledResult<{ event: EventWithDetails; position: { lat: number; lng: number } }> =>
+                    r.status === 'fulfilled' && r.value !== null)
+                .map(r => r.value);
+
+            console.log(`[MapView] Rendering ${resolved.length}/${events.length} events on map`);
 
             // Step 2 — group events within 150m of each other as the same location.
             // Places autocomplete and Geocoding API return different coordinates for the
@@ -470,6 +500,37 @@ export default function MapView({ events }: Props) {
                                         <View>
                                             <Text style={{ fontSize: 11, color: '#9ca3af', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 }}>📝 About</Text>
                                             <Text style={{ fontSize: 14, color: '#374151', lineHeight: 22 }}>{selectedEvent.description}</Text>
+                                        </View>
+                                    ) : null}
+                                    {selectedEvent.tags && selectedEvent.tags.length > 0 && (
+                                        <View>
+                                            <Text style={{ fontSize: 11, color: '#9ca3af', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>🏷️ Tags</Text>
+                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                                {selectedEvent.tags.map((tag) => {
+                                                    const { backgroundColor, textColor } = getTagColor(tag);
+                                                    return (
+                                                        <View key={tag} style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor }}>
+                                                            <Text style={{ fontSize: 12, color: textColor }}>{formatTagLabel(tag)}</Text>
+                                                        </View>
+                                                    );
+                                                })}
+                                            </View>
+                                        </View>
+                                    )}
+                                    {selectedEvent.source_url ? (
+                                        <View>
+                                            <Text style={{ fontSize: 11, color: '#9ca3af', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 }}>🔗 Link</Text>
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    const url = selectedEvent.source_url!.startsWith('http') ? selectedEvent.source_url! : `https://${selectedEvent.source_url}`;
+                                                    Linking.openURL(url);
+                                                }}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Text style={{ fontSize: 14, color: '#BB0000', fontWeight: '500', textDecorationLine: 'underline' }} numberOfLines={1}>
+                                                    {selectedEvent.source_url}
+                                                </Text>
+                                            </TouchableOpacity>
                                         </View>
                                     ) : null}
                                 </View>

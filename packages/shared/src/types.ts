@@ -25,6 +25,7 @@ export interface Event {
   description: string | null;
   tags: EventTag[];
   image_url: string | null;
+  source_url: string | null;
   status: "active" | "canceled";
   created_at: string;
 }

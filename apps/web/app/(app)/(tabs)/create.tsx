@@ -110,6 +110,7 @@ export default function CreateEventScreen() {
   const locationInputRef = useRef<HTMLInputElement>(null);
   const [capacity, setCapacity] = useState("");
   const [description, setDescription] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [removePhotoRequested, setRemovePhotoRequested] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -181,7 +182,7 @@ export default function CreateEventScreen() {
 
     (supabase
       .from("events")
-      .select("title, start_time, end_time, location_text, location_lat, location_lng, capacity, description, image_url")
+      .select("title, start_time, end_time, location_text, location_lat, location_lng, capacity, description, image_url, source_url")
       .eq("id", editId)
       .single() as any
     ).then(({ data, error }: { data: any; error: any }) => {
@@ -198,6 +199,7 @@ export default function CreateEventScreen() {
       setLocationLng(data.location_lng ?? null);
       setCapacity(data.capacity ? String(data.capacity) : "");
       setDescription(data.description || "");
+      setSourceUrl(data.source_url || "");
       setExistingImageUrl(data.image_url || null);
       originalEventRef.current = {
         start_time: data.start_time,
@@ -442,6 +444,7 @@ export default function CreateEventScreen() {
         location_lng: resolvedLng,
         capacity: capacityNum,
         description: description.trim() || null,
+        source_url: sourceUrl.trim() || null,
       };
 
       if (nextImageUrl !== undefined) {
@@ -546,6 +549,7 @@ export default function CreateEventScreen() {
         location_lng: resolvedLng,
         capacity: capacityNum,
         description: description.trim() || null,
+        source_url: sourceUrl.trim() || null,
         image_url: imageUrl,
         status: "active" as const,
       }).select("id").single();
@@ -582,6 +586,7 @@ export default function CreateEventScreen() {
         setLocationLng(null);
         setCapacity("");
         setDescription("");
+        setSourceUrl("");
         setEventPhoto(null);
         requestFeedRefresh();
         router.replace("/(app)/(tabs)/feed");
@@ -766,6 +771,25 @@ export default function CreateEventScreen() {
 
             <View className="px-5 py-4 border-b border-gray-200">
               <Text className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">
+                Link (Optional)
+              </Text>
+              <TextInput
+                className="bg-white border border-gray-300 rounded-md px-4 py-3 text-base text-osu-dark"
+                placeholder="https://your-website-or-social-page.com"
+                placeholderTextColor={PLACEHOLDER_COLOR}
+                value={sourceUrl}
+                onChangeText={setSourceUrl}
+                keyboardType="url"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Text className="text-gray-400 text-xs mt-1">
+                Website, Instagram, Discord, sign-up form, etc.
+              </Text>
+            </View>
+
+            <View className="px-5 py-4 border-b border-gray-200">
+              <Text className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">
               Event Photo (Optional)
             </Text>
             <TouchableOpacity
@@ -879,6 +903,13 @@ export default function CreateEventScreen() {
                 <View className="mb-3">
                   <Text className="text-xs font-semibold text-gray-400 uppercase mb-0.5">Description</Text>
                   <Text className="text-base text-osu-dark">{description.trim()}</Text>
+                </View>
+              ) : null}
+
+              {sourceUrl.trim() ? (
+                <View className="mb-3">
+                  <Text className="text-xs font-semibold text-gray-400 uppercase mb-0.5">Link</Text>
+                  <Text className="text-base text-osu-scarlet">{sourceUrl.trim()}</Text>
                 </View>
               ) : null}
 
