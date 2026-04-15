@@ -22,17 +22,35 @@ const MapView = lazy(() => import('../../../components/MapView'));
 
 type ViewMode = 'list' | 'map';
 
-type FilterType = 'all' | 'next3hours' | 'today' | 'freeFood' | 'myInterests';
+type FilterType = 'all' | 'next3hours' | 'date' | 'freeFood' | 'myInterests';
 
 const FILTER_OPTIONS: Array<{ value: FilterType; label: string }> = [
     { value: 'all', label: 'All' },
     { value: 'next3hours', label: 'Next 3h' },
-    { value: 'today', label: 'Today' },
+    { value: 'date', label: 'Date' },
     { value: 'freeFood', label: 'Free Food' },
     { value: 'myInterests', label: 'My Interests' },
 ];
 
 const FILTER_TAGS_SESSION_KEY = 'popin-filter-tags';
+const SELECTED_DATE_FROM_KEY = 'popin-filter-date-from';
+const SELECTED_DATE_TO_KEY = 'popin-filter-date-to';
+
+const formatDateLabel = (dateStr: string) => {
+    const [yyyy, mm, dd] = dateStr.split('-').map(Number);
+    return new Date(yyyy, mm - 1, dd).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+    });
+};
+
+const getTodayStr = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+};
 
 const feedCache: Partial<Record<FilterType, EventWithDetails[]>> = {};
 
@@ -79,6 +97,21 @@ export default function FeedScreen() {
     const [viewMode, setViewMode] = useState<ViewMode>('list');
     const [showFilterMenu, setShowFilterMenu] = useState(false);
     const [showTagPicker, setShowTagPicker] = useState(false);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [selectedDateFrom, setSelectedDateFrom] = useState<string>(() => {
+        try {
+            return globalThis.sessionStorage?.getItem(SELECTED_DATE_FROM_KEY) || getTodayStr();
+        } catch {
+            return getTodayStr();
+        }
+    });
+    const [selectedDateTo, setSelectedDateTo] = useState<string>(() => {
+        try {
+            return globalThis.sessionStorage?.getItem(SELECTED_DATE_TO_KEY) || getTodayStr();
+        } catch {
+            return getTodayStr();
+        }
+    });
     const [userId, setUserId] = useState<string | null>(null);
     const [interestTags, setInterestTags] = useState<string[]>([]);
 
@@ -98,6 +131,19 @@ export default function FeedScreen() {
     // Dedup guard: track event IDs that have already fired event_viewed this session
     const viewedIdsRef = useRef(new Set<string>());
 
+    // Persist date range to sessionStorage
+    useEffect(() => {
+        try {
+            globalThis.sessionStorage?.setItem(SELECTED_DATE_FROM_KEY, selectedDateFrom);
+        } catch {}
+    }, [selectedDateFrom]);
+
+    useEffect(() => {
+        try {
+            globalThis.sessionStorage?.setItem(SELECTED_DATE_TO_KEY, selectedDateTo);
+        } catch {}
+    }, [selectedDateTo]);
+
     // Keep ref in sync; persist to sessionStorage for guests only
     useEffect(() => {
         selectedFilterTagsRef.current = selectedFilterTags;
@@ -115,6 +161,12 @@ export default function FeedScreen() {
             return selectedFilterTags.length > 0
                 ? `Interests (${selectedFilterTags.length})`
                 : 'My Interests';
+        }
+        if (filter === 'date') {
+            const today = getTodayStr();
+            if (selectedDateFrom === today && selectedDateTo === today) return 'Today';
+            if (selectedDateFrom === selectedDateTo) return formatDateLabel(selectedDateFrom);
+            return `${formatDateLabel(selectedDateFrom)} – ${formatDateLabel(selectedDateTo)}`;
         }
         return FILTER_OPTIONS.find((o) => o.value === filter)?.label || 'All';
     })();
@@ -193,10 +245,14 @@ export default function FeedScreen() {
                     now.getTime() + 3 * 60 * 60 * 1000,
                 );
                 query = query.lte('start_time', threeHoursLater.toISOString());
-            } else if (filter === 'today') {
-                const endOfDay = new Date(now);
-                endOfDay.setHours(23, 59, 59, 999);
-                query = query.lte('start_time', endOfDay.toISOString());
+            } else if (filter === 'date') {
+                const [fy, fm, fd] = selectedDateFrom.split('-').map(Number);
+                const [ty, tm, td] = selectedDateTo.split('-').map(Number);
+                const startOfFrom = new Date(fy, fm - 1, fd, 0, 0, 0, 0);
+                const endOfTo = new Date(ty, tm - 1, td, 23, 59, 59, 999);
+                query = query
+                    .gte('start_time', startOfFrom.toISOString())
+                    .lte('start_time', endOfTo.toISOString());
             } else if (filter === 'freeFood') {
                 query = query.contains('tags', ['free_food']);
             } else if (filter === 'myInterests') {
@@ -233,7 +289,7 @@ export default function FeedScreen() {
                     interestTags,
                 );
 
-                if (filter !== 'myInterests') {
+                if (filter !== 'myInterests' && filter !== 'date') {
                     feedCache[filter] = eventsWithDetails;
                 }
 
@@ -242,7 +298,7 @@ export default function FeedScreen() {
 
             setLoading(false);
         },
-        [filter, userId, interestTags],
+        [filter, userId, interestTags, selectedDateFrom, selectedDateTo],
     );
 
     useEffect(() => {
@@ -260,6 +316,19 @@ export default function FeedScreen() {
     const handlePickerClose = useCallback(() => {
         setShowTagPicker(false);
         if (filter === 'myInterests') {
+            fetchEvents(true);
+        }
+    }, [filter, fetchEvents]);
+
+    const handleSelectDate = () => {
+        setFilter('date');
+        setShowFilterMenu(false);
+        setShowDatePicker(true);
+    };
+
+    const handleDatePickerClose = useCallback(() => {
+        setShowDatePicker(false);
+        if (filter === 'date') {
             fetchEvents(true);
         }
     }, [filter, fetchEvents]);
@@ -284,7 +353,7 @@ export default function FeedScreen() {
     return (
         <View className="flex-1 bg-gray-100">
             {/* Backdrop — closes any open panel */}
-            {(showFilterMenu || showTagPicker) && (
+            {(showFilterMenu || showTagPicker || showDatePicker) && (
                 <TouchableOpacity
                     style={{
                         position: 'absolute',
@@ -295,6 +364,7 @@ export default function FeedScreen() {
                     onPress={() => {
                         setShowFilterMenu(false);
                         if (showTagPicker) handlePickerClose();
+                        if (showDatePicker) handleDatePickerClose();
                     }}
                 />
             )}
@@ -323,6 +393,7 @@ export default function FeedScreen() {
                     <TouchableOpacity
                         onPress={() => {
                             setShowTagPicker(false);
+                            setShowDatePicker(false);
                             setShowFilterMenu((v) => !v);
                         }}
                         activeOpacity={0.8}
@@ -363,10 +434,12 @@ export default function FeedScreen() {
                                         onPress={
                                             option.value === 'myInterests'
                                                 ? handleSelectMyInterests
-                                                : () => {
-                                                      setFilter(option.value);
-                                                      setShowFilterMenu(false);
-                                                  }
+                                                : option.value === 'date'
+                                                  ? handleSelectDate
+                                                  : () => {
+                                                        setFilter(option.value);
+                                                        setShowFilterMenu(false);
+                                                    }
                                         }
                                         style={{
                                             paddingHorizontal: 16,
@@ -380,12 +453,83 @@ export default function FeedScreen() {
                                         <Text style={{ fontSize: 15, fontWeight: isActive ? '600' : '400', color: isActive ? '#111827' : '#374151' }}>
                                             {option.label}
                                         </Text>
-                                        {option.value === 'myInterests' && (
+                                        {(option.value === 'myInterests' || option.value === 'date') && (
                                             <MaterialIcons name="chevron-right" size={16} color="#9CA3AF" />
                                         )}
                                     </TouchableOpacity>
                                 );
                             })}
+                        </View>
+                    )}
+
+                    {/* Date picker panel */}
+                    {showDatePicker && (
+                        <View
+                            style={{
+                                position: 'absolute',
+                                top: 48,
+                                right: 0,
+                                width: 280,
+                                borderRadius: 16,
+                                backgroundColor: 'white',
+                                borderWidth: 1,
+                                borderColor: '#E5E7EB',
+                                shadowColor: '#000',
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowOpacity: 0.1,
+                                shadowRadius: 12,
+                                overflow: 'hidden',
+                                zIndex: 30,
+                            }}
+                        >
+                            {/* Header */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+                                <Text style={{ fontSize: 13, fontWeight: '700', color: '#111827' }}>Pick a date range</Text>
+                                <TouchableOpacity onPress={handleDatePickerClose}>
+                                    <MaterialIcons name="close" size={18} color="#6B7280" />
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* From / To inputs */}
+                            <View style={{ padding: 16, gap: 12 }}>
+                                <View>
+                                    <Text style={{ fontSize: 11, fontWeight: '600', color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>From</Text>
+                                    {/* @ts-ignore — raw HTML input, safe in web-only app */}
+                                    <input
+                                        type="date"
+                                        value={selectedDateFrom}
+                                        min={getTodayStr()}
+                                        onChange={(e: any) => {
+                                            const val = e.target.value;
+                                            setSelectedDateFrom(val);
+                                            // Snap To if it's now before From
+                                            if (val > selectedDateTo) setSelectedDateTo(val);
+                                        }}
+                                        style={{ fontSize: 14, padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB', width: '100%', outline: 'none', color: '#111827', boxSizing: 'border-box' }}
+                                    />
+                                </View>
+                                <View>
+                                    <Text style={{ fontSize: 11, fontWeight: '600', color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>To</Text>
+                                    {/* @ts-ignore — raw HTML input, safe in web-only app */}
+                                    <input
+                                        type="date"
+                                        value={selectedDateTo}
+                                        min={selectedDateFrom}
+                                        onChange={(e: any) => setSelectedDateTo(e.target.value)}
+                                        style={{ fontSize: 14, padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB', width: '100%', outline: 'none', color: '#111827', boxSizing: 'border-box' }}
+                                    />
+                                </View>
+                            </View>
+
+                            {/* Done button */}
+                            <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
+                                <TouchableOpacity
+                                    onPress={handleDatePickerClose}
+                                    style={{ backgroundColor: '#BB0000', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+                                >
+                                    <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Done</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     )}
 
