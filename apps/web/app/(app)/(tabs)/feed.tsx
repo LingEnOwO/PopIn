@@ -219,7 +219,9 @@ export default function FeedScreen() {
                 if (cancelled) return;
                 if (error) { console.error(error); setInterestTags([]); return; }
                 // @ts-expect-error — supabase narrows data to never when select is a string literal
-                setInterestTags((data?.interest_tags || []).filter(Boolean));
+                const tags = (data?.interest_tags || []).filter(Boolean);
+                setInterestTags(tags);
+                setSelectedFilterTags(tags);
             });
 
         return () => { cancelled = true; };
