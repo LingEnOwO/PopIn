@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, router } from "expo-router";
+import { EVENT_TAGS, formatTagLabel, getTagColor, type EventTag } from "shared";
 import { supabase } from "../../../lib/supabase";
 import { uploadEventPhoto } from "../../../lib/storage";
 import { requestFeedRefresh } from "../../../lib/feedRefresh";
@@ -90,6 +91,7 @@ const toMinutePrecision = (date: Date): Date => {
   return next;
 };
 
+
 const DEFAULT_EVENT_DURATION_MS = 60 * 60 * 1000;
 const PLACEHOLDER_COLOR = "#9ca3af";
 
@@ -110,6 +112,7 @@ export default function CreateEventScreen() {
   const locationInputRef = useRef<HTMLInputElement>(null);
   const [capacity, setCapacity] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedTags, setSelectedTags] = useState<EventTag[]>([]);
   const [sourceUrl, setSourceUrl] = useState("");
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [removePhotoRequested, setRemovePhotoRequested] = useState(false);
@@ -182,7 +185,7 @@ export default function CreateEventScreen() {
 
     (supabase
       .from("events")
-      .select("title, start_time, end_time, location_text, location_lat, location_lng, capacity, description, image_url, source_url")
+      .select("title, start_time, end_time, location_text, location_lat, location_lng, capacity, description, tags, image_url, source_url")
       .eq("id", editId)
       .single() as any
     ).then(({ data, error }: { data: any; error: any }) => {
@@ -199,6 +202,7 @@ export default function CreateEventScreen() {
       setLocationLng(data.location_lng ?? null);
       setCapacity(data.capacity ? String(data.capacity) : "");
       setDescription(data.description || "");
+      setSelectedTags((data.tags as EventTag[]) || []);
       setSourceUrl(data.source_url || "");
       setExistingImageUrl(data.image_url || null);
       originalEventRef.current = {
@@ -444,6 +448,7 @@ export default function CreateEventScreen() {
         location_lng: resolvedLng,
         capacity: capacityNum,
         description: description.trim() || null,
+        tags: selectedTags,
         source_url: sourceUrl.trim() || null,
       };
 
@@ -549,6 +554,7 @@ export default function CreateEventScreen() {
         location_lng: resolvedLng,
         capacity: capacityNum,
         description: description.trim() || null,
+        tags: selectedTags,
         source_url: sourceUrl.trim() || null,
         image_url: imageUrl,
         status: "active" as const,
@@ -586,6 +592,7 @@ export default function CreateEventScreen() {
         setLocationLng(null);
         setCapacity("");
         setDescription("");
+        setSelectedTags([]);
         setSourceUrl("");
         setEventPhoto(null);
         requestFeedRefresh();
@@ -771,6 +778,47 @@ export default function CreateEventScreen() {
 
             <View className="px-5 py-4 border-b border-gray-200">
               <Text className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">
+                Tags (Optional)
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {EVENT_TAGS.map((tag) => {
+                  const selected = selectedTags.includes(tag);
+                  const colors = getTagColor(tag);
+                  return (
+                    <Pressable
+                      key={tag}
+                      onPress={() =>
+                        setSelectedTags((prev) =>
+                          prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+                        )
+                      }
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 999,
+                        borderWidth: 1.5,
+                        borderColor: selected ? colors.textColor : "#e5e7eb",
+                        backgroundColor: selected ? colors.backgroundColor : "#f9fafb",
+                        opacity: selected ? 1 : 0.85,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: selected ? "600" : "400",
+                          color: selected ? colors.textColor : "#6b7280",
+                        }}
+                      >
+                        {formatTagLabel(tag)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View className="px-5 py-4 border-b border-gray-200">
+              <Text className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">
                 Link (Optional)
               </Text>
               <TextInput
@@ -903,6 +951,15 @@ export default function CreateEventScreen() {
                 <View className="mb-3">
                   <Text className="text-xs font-semibold text-gray-400 uppercase mb-0.5">Description</Text>
                   <Text className="text-base text-osu-dark">{description.trim()}</Text>
+                </View>
+              ) : null}
+
+              {selectedTags.length > 0 ? (
+                <View className="mb-3">
+                  <Text className="text-xs font-semibold text-gray-400 uppercase mb-0.5">Tags</Text>
+                  <Text className="text-base text-osu-dark">
+                    {selectedTags.map((t) => formatTagLabel(t)).join(", ")}
+                  </Text>
                 </View>
               ) : null}
 
