@@ -56,7 +56,7 @@ async function queryCount(
         .from('events')
         .select('*', { count: 'exact', head: true }) as any)
         .eq('status', 'active')
-        .gte('start_time', new Date().toISOString());
+        .gte('end_time', new Date().toISOString());
 
     if (next3h) {
         query = query.lte('start_time', new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString());
@@ -92,10 +92,16 @@ const calculateEventScore = (
 ) => {
     const interestSet = new Set(interestTags);
     const matchCount = (event.tags || []).filter((tag) => interestSet.has(tag)).length;
-    const hoursUntilEvent =
-        (new Date(event.start_time).getTime() - now.getTime()) / (1000 * 60 * 60);
+    const startTime = new Date(event.start_time).getTime();
+    const nowMs = now.getTime();
+    const alreadyStarted = startTime < nowMs;
+    const minutesUntilEnd = (new Date(event.end_time).getTime() - nowMs) / (1000 * 60);
+    const hoursUntilEvent = (startTime - nowMs) / (1000 * 60 * 60);
 
-    return matchCount * 3 + (hoursUntilEvent < 24 ? 1 : 0);
+    // In-progress with >30min left → boost above upcoming; <30min left → push below
+    const inProgressBonus = alreadyStarted ? (minutesUntilEnd > 30 ? 50 : -100) : 0;
+
+    return matchCount * 3 + (hoursUntilEvent < 24 ? 1 : 0) + inProgressBonus;
 };
 
 const sortByScore = (
@@ -281,7 +287,7 @@ export default function FeedScreen() {
       `,
                 )
                 .eq('status', 'active')
-                .gte('start_time', new Date().toISOString())
+                .gte('end_time', new Date().toISOString())
                 .order('start_time', { ascending: true });
 
             if (next3h) {

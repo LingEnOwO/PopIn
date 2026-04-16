@@ -28,6 +28,8 @@ export function EventCard({ event, onPress }: EventCardProps) {
     });
   };
 
+  const now = new Date();
+  const isHappeningNow = startDate <= now && endDate > now;
   const attendeeCount = event.attendee_count || 0;
   const isUnlimitedCapacity = event.capacity == null;
   const capacityValue = event.capacity ?? 0;
@@ -56,11 +58,19 @@ export function EventCard({ event, onPress }: EventCardProps) {
           <Text className="text-xl font-semibold text-osu-dark flex-1" numberOfLines={2}>
             {event.title}
           </Text>
-          {isFull && (
-            <View className="ml-3 px-2 py-1 rounded border border-osu-scarlet">
-              <Text className="text-xs font-semibold text-osu-scarlet">FULL</Text>
-            </View>
-          )}
+          <View className="flex-row items-center ml-3" style={{ gap: 6 }}>
+            {isHappeningNow && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#DCFCE7', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#16A34A', marginRight: 4 }} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#15803D' }}>NOW</Text>
+              </View>
+            )}
+            {isFull && (
+              <View className="px-2 py-1 rounded border border-osu-scarlet">
+                <Text className="text-xs font-semibold text-osu-scarlet">FULL</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         <Text className="text-sm text-gray-500 mb-3" numberOfLines={1}>
