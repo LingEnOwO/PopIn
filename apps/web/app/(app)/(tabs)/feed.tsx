@@ -93,11 +93,15 @@ const calculateEventScore = (
     const interestSet = new Set(interestTags);
     const matchCount = (event.tags || []).filter((tag) => interestSet.has(tag)).length;
     const startTime = new Date(event.start_time).getTime();
-    const alreadyStarted = startTime < now.getTime();
-    const hoursUntilEvent = (startTime - now.getTime()) / (1000 * 60 * 60);
+    const nowMs = now.getTime();
+    const alreadyStarted = startTime < nowMs;
+    const minutesUntilEnd = (new Date(event.end_time).getTime() - nowMs) / (1000 * 60);
+    const hoursUntilEvent = (startTime - nowMs) / (1000 * 60 * 60);
 
-    // Penalize in-progress events so they sort below upcoming ones
-    return matchCount * 3 + (hoursUntilEvent < 24 ? 1 : 0) + (alreadyStarted ? -100 : 0);
+    // In-progress with >30min left → boost above upcoming; <30min left → push below
+    const inProgressBonus = alreadyStarted ? (minutesUntilEnd > 30 ? 50 : -100) : 0;
+
+    return matchCount * 3 + (hoursUntilEvent < 24 ? 1 : 0) + inProgressBonus;
 };
 
 const sortByScore = (
