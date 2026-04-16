@@ -24,7 +24,7 @@ import { resolveEventLocation } from "../../../lib/geocode";
 import { loadGoogleMaps } from "../../../lib/googleMaps";
 import { PrimaryButton, SecondaryButton } from "../../../components/Button";
 
-type RequiredField = "title" | "location";
+type RequiredField = "title" | "location" | "capacity" | "startTime" | "endTime";
 type PickerTarget = "startDate" | "startTime" | "endDate" | "endTime";
 
 type FieldErrors = Partial<Record<RequiredField, string>>;
@@ -109,6 +109,7 @@ export default function CreateEventScreen() {
   const [location, setLocation] = useState("");
   const [locationLat, setLocationLat] = useState<number | null>(null);
   const [locationLng, setLocationLng] = useState<number | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   const locationInputRef = useRef<HTMLInputElement>(null);
   const [capacity, setCapacity] = useState("");
   const [description, setDescription] = useState("");
@@ -248,11 +249,26 @@ export default function CreateEventScreen() {
   };
 
 
-  const validateRequiredFields = (): FieldErrors => {
+  const validateAllFields = (): FieldErrors => {
     const errors: FieldErrors = {};
+    const trimmedCapacity = capacity.trim();
+    const capacityNum = trimmedCapacity ? parseInt(trimmedCapacity, 10) : null;
 
     if (!title.trim()) errors.title = "Title is required";
     if (!location.trim()) errors.location = "Location is required";
+
+    if (trimmedCapacity && (isNaN(capacityNum!) || capacityNum! < 2)) {
+      errors.capacity = "Capacity must be at least 2, or leave blank for unlimited";
+    } else if (isEditMode && capacityNum != null && capacityNum < currentAttendeeCount) {
+      errors.capacity = `This event already has ${currentAttendeeCount} attendee${currentAttendeeCount !== 1 ? "s" : ""}. Capacity must be at least ${currentAttendeeCount}.`;
+    }
+
+    if (startDateTime < new Date()) {
+      errors.startTime = "Start time must be in the future";
+    }
+    if (endDateTime <= startDateTime) {
+      errors.endTime = "End time must be after start time";
+    }
 
     return errors;
   };
@@ -369,35 +385,11 @@ export default function CreateEventScreen() {
   const handleReview = () => {
     setReviewError(null);
 
-    const requiredFieldErrors = validateRequiredFields();
-    setFieldErrors(requiredFieldErrors);
+    const errors = validateAllFields();
+    setFieldErrors(errors);
 
-    if (Object.keys(requiredFieldErrors).length > 0) {
-      return;
-    }
-
-    const trimmedCapacity = capacity.trim();
-    const capacityNum = trimmedCapacity ? parseInt(trimmedCapacity, 10) : null;
-    if (trimmedCapacity && (capacityNum == null || isNaN(capacityNum) || capacityNum < 2)) {
-      Alert.alert("Error", "Capacity must be at least 2 (you as the host + at least 1 attendee), or leave blank for unlimited");
-      return;
-    }
-
-    if (isEditMode && capacityNum != null && capacityNum < currentAttendeeCount) {
-      Alert.alert(
-        "Capacity Too Low",
-        `This event already has ${currentAttendeeCount} attendee${currentAttendeeCount !== 1 ? "s" : ""}. New capacity must be at least ${currentAttendeeCount}.`,
-      );
-      return;
-    }
-
-    if (endDateTime <= startDateTime) {
-      Alert.alert("Error", "End time must be after start time");
-      return;
-    }
-
-    if (startDateTime < new Date()) {
-      Alert.alert("Error", "Start time must be in the future");
+    if (Object.keys(errors).length > 0) {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
@@ -612,6 +604,7 @@ export default function CreateEventScreen() {
   return (
     <View className="flex-1">
       <ScrollView
+        ref={scrollViewRef}
         className="flex-1 bg-white"
         contentContainerStyle={{ paddingBottom: 88 }}
         showsVerticalScrollIndicator={false}
@@ -623,6 +616,18 @@ export default function CreateEventScreen() {
                 {isEditMode ? "Edit Event" : "Create New Event"}
               </Text>
             </View>
+
+            {Object.keys(fieldErrors).length > 0 && (
+              <View className="mx-5 mb-2 rounded-xl border border-red-200 bg-red-50 p-4">
+                <Text className="text-sm font-bold text-red-700 mb-2">Please fix the following before continuing:</Text>
+                {Object.values(fieldErrors).map((msg, i) => (
+                  <View key={i} className="flex-row items-start mb-1">
+                    <Text className="text-red-500 mr-2">•</Text>
+                    <Text className="text-sm text-red-600 flex-1">{msg}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
             <View className="px-5 py-4 border-b border-gray-200">
             {renderRequiredLabel("Title")}
@@ -649,9 +654,10 @@ export default function CreateEventScreen() {
               type="date"
               value={toDateInputValue(startDateTime)}
               min={toDateInputValue(new Date())}
-              onChange={(event) =>
-                handleWebDateInputChange("startDate", event.currentTarget.value)
-              }
+              onChange={(event) => {
+                handleWebDateInputChange("startDate", event.currentTarget.value);
+                if (fieldErrors.startTime) setFieldErrors((prev) => ({ ...prev, startTime: undefined }));
+              }}
               className="web-datetime-input"
             />
             </View>
@@ -666,11 +672,16 @@ export default function CreateEventScreen() {
                   ? toTimeInputValue(new Date())
                   : undefined
               }
-              onChange={(event) =>
-                handleWebTimeInputChange("startTime", event.currentTarget.value)
-              }
+              onChange={(event) => {
+                handleWebTimeInputChange("startTime", event.currentTarget.value);
+                if (fieldErrors.startTime) setFieldErrors((prev) => ({ ...prev, startTime: undefined }));
+              }}
               className="web-datetime-input"
+              style={{ borderColor: fieldErrors.startTime ? '#ef4444' : undefined }}
             />
+            {fieldErrors.startTime && (
+              <Text className="text-red-500 text-sm mt-1">{fieldErrors.startTime}</Text>
+            )}
             </View>
 
             <View className="px-5 py-4 border-b border-gray-200">
@@ -679,9 +690,10 @@ export default function CreateEventScreen() {
               type="date"
               value={toDateInputValue(endDateTime)}
               min={toDateInputValue(startDateTime)}
-              onChange={(event) =>
-                handleWebDateInputChange("endDate", event.currentTarget.value)
-              }
+              onChange={(event) => {
+                handleWebDateInputChange("endDate", event.currentTarget.value);
+                if (fieldErrors.endTime) setFieldErrors((prev) => ({ ...prev, endTime: undefined }));
+              }}
               className="web-datetime-input"
             />
             </View>
@@ -696,11 +708,16 @@ export default function CreateEventScreen() {
                   ? toTimeInputValue(startDateTime)
                   : undefined
               }
-              onChange={(event) =>
-                handleWebTimeInputChange("endTime", event.currentTarget.value)
-              }
+              onChange={(event) => {
+                handleWebTimeInputChange("endTime", event.currentTarget.value);
+                if (fieldErrors.endTime) setFieldErrors((prev) => ({ ...prev, endTime: undefined }));
+              }}
               className="web-datetime-input"
+              style={{ borderColor: fieldErrors.endTime ? '#ef4444' : undefined }}
             />
+            {fieldErrors.endTime && (
+              <Text className="text-red-500 text-sm mt-1">{fieldErrors.endTime}</Text>
+            )}
             </View>
 
             <View className="px-5 py-4 border-b border-gray-200">
@@ -731,33 +748,19 @@ export default function CreateEventScreen() {
             <View className="px-5 py-4 border-b border-gray-200">
               <Text className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Capacity (Optional)</Text>
             <TextInput
-              className="bg-white border border-gray-300 rounded-md px-4 py-3 text-base text-osu-dark"
+              className={`bg-white border rounded-md px-4 py-3 text-base text-osu-dark ${fieldErrors.capacity ? "border-red-500" : "border-gray-300"}`}
               placeholder="Leave blank for unlimited"
               placeholderTextColor={PLACEHOLDER_COLOR}
               value={capacity}
-              onChangeText={setCapacity}
+              onChangeText={(v) => {
+                setCapacity(v);
+                if (fieldErrors.capacity) setFieldErrors((prev) => ({ ...prev, capacity: undefined }));
+              }}
               keyboardType="number-pad"
             />
-            {(() => {
-              const num = parseInt(capacity.trim(), 10);
-              if (capacity.trim() && !isNaN(num)) {
-                if (num < 2) {
-                  return (
-                    <Text className="text-red-500 text-sm mt-1">
-                      Capacity must be at least 2 (you + 1 attendee). Leave blank for unlimited.
-                    </Text>
-                  );
-                }
-                if (isEditMode && num < currentAttendeeCount) {
-                  return (
-                    <Text className="text-red-500 text-sm mt-1">
-                      This event already has {currentAttendeeCount} attendee{currentAttendeeCount !== 1 ? "s" : ""}. Capacity cannot be lower than the current attendee count.
-                    </Text>
-                  );
-                }
-              }
-              return null;
-            })()}
+            {fieldErrors.capacity ? (
+              <Text className="text-red-500 text-sm mt-1">{fieldErrors.capacity}</Text>
+            ) : null}
             </View>
 
             <View className="px-5 py-4 border-b border-gray-200">
